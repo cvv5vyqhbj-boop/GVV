@@ -1,0 +1,5 @@
+# Configuração do site no Netlify
+# Publica o index.html na raiz. Sem etapa de build, sem functions (por enquanto).
+
+[build]
+  publish = "."

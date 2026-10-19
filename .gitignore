@@ -1,0 +1,9 @@
+.DS_Store
+**/.DS_Store
+
+# Dados pessoais dos cadastros antigos: ficam so no computador
+supabase/gvv-candidatos.sql
+supabase/gvv-atualizacao-2026-10-07.sql
+supabase/gvv-enderecos-lideres-2026-10-07.sql
+supabase/gvv-aprovar-todos-2026-10-14.sql
+.publicar.sh

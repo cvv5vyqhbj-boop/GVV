@@ -1,0 +1,62 @@
+{
+  "name": "GVV — ADVEC Curitiba",
+  "short_name": "GVV",
+  "description": "Rede de GVVs da ADVEC Curitiba: mapa, candidatos, conexões líder–anfitrião e acompanhamento.",
+  "id": "/",
+  "start_url": "/?go=celulas",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6f9",
+  "theme_color": "#ffffff",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": [
+    "productivity",
+    "business"
+  ],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "GVVs",
+      "short_name": "GVVs",
+      "url": "/?go=celulas",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Mapa geral",
+      "short_name": "Mapa",
+      "url": "/?go=mapageral",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
