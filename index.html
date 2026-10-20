@@ -743,6 +743,44 @@
     .gvv-table td.addr { min-width: 220px; } .gvv-table td.note { min-width: 260px; max-width: 420px; color: var(--muted); }
     .gvv-table tr.warn td.note { color: #b7791f; font-weight: 600; }
     html[data-theme="dark"] .gvv-table tr.warn td.note { color: #f6c453; }
+    /* Quadro visual (aba Cadastros) */
+    .gvv-switch { display:inline-flex; background: var(--surface-2); border:1px solid var(--line); border-radius: 10px; padding: 3px; }
+    .gvv-switch button { padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 13.5px; color: var(--muted); }
+    .gvv-switch button.on { background: var(--gvv-blue); color: #fff; }
+    .gvv-board-wrap { overflow-x: auto; padding-bottom: 6px; }
+    .gvv-board { display:grid; grid-template-columns: 150px repeat(var(--cols), minmax(240px, 1fr)); gap: 10px; min-width: calc(150px + var(--cols) * 250px); }
+    .gvv-corner { }
+    .gvv-colhead { font-family: var(--gvv-display); text-transform: uppercase; font-size: 28px; line-height: 1; padding: 16px 16px 14px; border-radius: 14px; display:flex; align-items:center; justify-content:space-between; gap: 8px; color:#fff; background: var(--gvv-blue); }
+    .gvv-colhead b { font-family:"Inter Tight",sans-serif; font-size: 14px; font-weight: 800; background: rgba(0,0,0,.25); padding: 3px 10px; border-radius: 99px; }
+    .gvv-colhead.c-jovens { background: #1f5fbf; } .gvv-colhead.c-adolescentes { background: var(--gvv-lime); color:#000; } .gvv-colhead.c-adolescentes b { background: rgba(0,0,0,.12); }
+    .gvv-colhead.c-adultos { background: #000; color: var(--gvv-cream); border: 1px solid var(--line-strong); }
+    .gvv-rowhead { border-radius: 14px; padding: 14px 12px; display:flex; flex-direction:column; justify-content:center; gap: 8px; font-family: var(--gvv-display); text-transform: uppercase; font-size: 20px; line-height: 1.05; background: var(--surface-2); border: 1px solid var(--line); position: sticky; left: 0; z-index: 2; }
+    .gvv-rowhead b { font-family:"Inter Tight",sans-serif; font-size: 13px; font-weight:800; align-self:flex-start; background: var(--surface-hi); padding: 2px 9px; border-radius: 99px; }
+    .gvv-rowhead.k-both { border-left: 6px solid var(--gvv-blue); } .gvv-rowhead.k-host { border-left: 6px solid var(--gvv-lime); } .gvv-rowhead.k-leader { border-left: 6px solid var(--gvv-cream); }
+    .gvv-cell { border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 10px; display:flex; flex-direction:column; gap: 7px; min-height: 120px; }
+    .gvv-cell.k-both { border-top: 4px solid var(--gvv-blue); } .gvv-cell.k-host { border-top: 4px solid var(--gvv-lime); } .gvv-cell.k-leader { border-top: 4px solid var(--gvv-cream); }
+    .gvv-cell-top { display:none; font-size: 12px; font-weight: 700; color: var(--muted); justify-content:space-between; }
+    .gvv-empty { font-size: 13px; color: var(--faint); padding: 8px 4px; }
+    .gvv-person { position: relative; text-align:left; display:grid; gap: 2px; padding: 9px 30px 9px 11px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); transition: transform .12s, border-color .12s; }
+    .gvv-person:hover { transform: translateY(-1px); border-color: var(--gvv-blue); }
+    .gvv-person.warn { border-color: rgba(214,158,46,.55); }
+    .gvv-tagno { font-family: var(--gvv-display); font-size: 13px; letter-spacing: .04em; color: var(--gvv-blue); }
+    html[data-theme="dark"] .gvv-tagno { color: #6fa3f0; }
+    .gvv-tagno.big { font-size: 18px; background: var(--gvv-lime); color:#000 !important; padding: 3px 10px; border-radius: 6px; }
+    .gvv-pname { font-weight: 700; font-size: 14px; line-height: 1.25; }
+    .gvv-pmeta { font-size: 12.5px; color: var(--muted); }
+    .gvv-pwarn { position:absolute; top: 8px; right: 10px; color: #d69e2e; font-size: 14px; }
+    .gvv-modal { position: fixed; inset: 0; z-index: 80; background: var(--overlay); display:flex; align-items:center; justify-content:center; padding: 16px; }
+    .gvv-modal-card { width: 100%; max-width: 520px; max-height: 90vh; overflow:auto; background: var(--surface); border:1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow-lg); }
+    .gvv-dl { display:grid; grid-template-columns: 120px 1fr; gap: 8px 12px; margin-top: 16px; font-size: 14px; }
+    .gvv-dl dt { color: var(--muted); font-weight: 600; } .gvv-dl dd { margin: 0; }
+    .gvv-conferir { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: rgba(214,158,46,.14); border: 1px solid rgba(214,158,46,.4); font-weight: 600; font-size: 13.5px; }
+    @media (max-width: 760px) {
+      .gvv-board { grid-template-columns: 1fr; min-width: 0; }
+      .gvv-corner, .gvv-rowhead { display:none; }
+      .gvv-colhead { display:none; }
+      .gvv-cell-top { display:flex; }
+    }
   </style>
 </head>
 <body>
@@ -1939,6 +1977,8 @@
       const [cat, setCat] = useState("misto");
       const [q, setQ] = useState("");
       const [onlyIssues, setOnlyIssues] = useState(false);
+      const [mode, setMode] = useState("quadro");
+      const [open, setOpen] = useState(null);
       useEffect(() => { (async () => {
         const { data, error } = await supabase.from("gvv_candidates").select("*").order("name");
         if (error) { setErr("Não foi possível carregar os cadastros. Se é a primeira vez, rode o SQL de importação."); setRows([]); return; }
@@ -1966,8 +2006,79 @@
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div><h2 className="font-serif text-[26px] leading-tight">Cadastros</h2>
               <p className="txt-muted text-sm">{all.length} inscritos · separados por categoria e por tipo. Linhas com ⚠ têm algo a conferir.</p></div>
-            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!list.length}>Baixar planilha desta aba</Button>
+            <div className="flex flex-wrap gap-2">
+              <div className="gvv-switch" role="tablist">
+                <button className={mode === "quadro" ? "on" : ""} onClick={() => setMode("quadro")}>Quadro</button>
+                <button className={mode === "tabela" ? "on" : ""} onClick={() => setMode("tabela")}>Tabela</button>
+              </div>
+              {mode === "tabela" && <Button variant="outline" size="sm" onClick={exportCsv} disabled={!list.length}>Baixar planilha desta aba</Button>}
+            </div>
           </div>
+          {mode === "quadro" && <>
+            <div className="mm-card p-3 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
+              <Input label="Buscar nome, telefone, bairro ou cidade" value={q} onChange={(e) => setQ(e.target.value)} />
+              <label className="flex items-center gap-2 text-sm font-semibold pb-2"><input type="checkbox" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} /> Só os que precisam conferir</label>
+            </div>
+            {err && <p className="text-rose-300 text-sm" role="alert">{err}</p>}
+            {rows === null ? <p role="status" className="txt-muted">Carregando…</p> : (
+              <div className="gvv-board-wrap">
+                <div className="gvv-board" style={{ "--cols": GVV_ROSTER_CATS.length }}>
+                  <div className="gvv-corner" />
+                  {GVV_ROSTER_CATS.map((c) => <div key={c.k} className={`gvv-colhead c-${c.k}`}>{c.label}<b>{all.filter((r) => inCat(r, c)).length}</b></div>)}
+                  {GVV_ROSTER_KINDS.map((kind) => (
+                    <React.Fragment key={kind.k}>
+                      <div className={`gvv-rowhead k-${kind.k}`}><span>{kind.label}</span><b>{all.filter((r) => r.kind === kind.k).length}</b></div>
+                      {GVV_ROSTER_CATS.map((c) => {
+                        const cell = all.filter((r) => r.kind === kind.k && inCat(r, c)).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+                        const shown = cell.filter((r) => (!onlyIssues || (r.review_notes || "").trim()) && (!q.trim() || norm([r.name, r.phone, r.neighborhood, r.city].join(" ")).includes(norm(q.trim()))));
+                        const prefix = c.k === "adolescentes" ? "ADOL" : c.label.toUpperCase();
+                        return (
+                          <div key={c.k} className={`gvv-cell k-${kind.k}`}>
+                            <div className="gvv-cell-top"><span>{kind.label} · {c.label}</span><b>{cell.length}</b></div>
+                            {!shown.length ? <p className="gvv-empty">{cell.length ? "Nenhum com esse filtro" : "Ninguém ainda"}</p> : shown.map((r) => {
+                              const n = String(cell.indexOf(r) + 1).padStart(2, "0");
+                              return (
+                                <button key={r.id} className={`gvv-person ${(r.review_notes || "").trim() ? "warn" : ""}`} onClick={() => setOpen({ r, tag: `${prefix} ${n}`, kind: kind.label, cat: c.label })}>
+                                  <span className="gvv-tagno">{prefix} {n}</span>
+                                  <span className="gvv-pname">{r.name}</span>
+                                  <span className="gvv-pmeta">{[r.neighborhood || r.city, (r.availability || "").split(" · ")[0]].filter(Boolean).join(" · ") || "—"}</span>
+                                  {(r.review_notes || "").trim() && <span className="gvv-pwarn" title="Tem algo a conferir">⚠</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
+            {semCat.length > 0 && <p className="text-sm txt-muted">{semCat.length} cadastro(s) sem categoria — veja no modo Tabela.</p>}
+            {open && (
+              <div className="gvv-modal" onClick={() => setOpen(null)}>
+                <div className="gvv-modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={open.r.name}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div><span className="gvv-tagno big">{open.tag}</span><h3 className="font-serif text-[26px] mt-2">{open.r.name}</h3><p className="txt-muted text-sm">{open.kind} · {open.cat}</p></div>
+                    <button onClick={() => setOpen(null)} className="p-2 rounded-lg hover-surface" aria-label="Fechar"><IX className="w-5 h-5" /></button>
+                  </div>
+                  <dl className="gvv-dl">
+                    <dt>WhatsApp</dt><dd>{open.r.phone ? <a href={waLink(open.r.phone, `Olá, ${open.r.name.split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold">{open.r.phone}</a> : "—"}</dd>
+                    <dt>Idade</dt><dd>{gvvAge(open.r.birth_date) || "—"}</dd>
+                    <dt>Membro há</dt><dd>{open.r.member_since || "—"}</dd>
+                    <dt>Público</dt><dd>{open.r.audience || "—"}</dd>
+                    {open.r.kind !== "leader" && <><dt>Dias · turno</dt><dd>{open.r.availability || "—"}</dd><dt>Residência</dt><dd>{[open.r.residence_type, open.r.capacity && `até ${open.r.capacity} pessoas`].filter(Boolean).join(" · ") || "—"}</dd></>}
+                    <dt>Endereço</dt><dd>{addr(open.r) || "Sem endereço"}</dd>
+                    {open.r.reference_point && <><dt>Referência</dt><dd>{open.r.reference_point}</dd></>}
+                    <dt>Situação</dt><dd>{GVV_STATUS_LABEL[status(open.r)] || status(open.r)}</dd>
+                    {open.r.source_text && <><dt>Observação</dt><dd>{open.r.source_text}</dd></>}
+                  </dl>
+                  {(open.r.review_notes || "").trim() && <p className="gvv-conferir">⚠ {open.r.review_notes}</p>}
+                </div>
+              </div>
+            )}
+          </>}
+          {mode === "tabela" && <>
           <div className="flex flex-wrap gap-2">
             {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-cat ${cat === c.k ? "on" : ""}`}>{c.label}<b>{all.filter((r) => inCat(r, c)).length}</b></button>)}
             {semCat.length > 0 && <button onClick={() => setCat("sem")} className={`gvv-cat ${cat === "sem" ? "on" : ""}`}>Sem categoria<b>{semCat.length}</b></button>}
@@ -2007,6 +2118,7 @@
               </section>
             );
           })}
+          </>}
         </div>
       );
     };
