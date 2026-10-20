@@ -2502,6 +2502,7 @@
       const [busy, setBusy] = useState("");
       const [page, setPage] = useState(0);
       const [kindF, setKindF] = useState("");
+      const [assign, setAssign] = useState(false);
       const PER = 8;
       const mapEl = useRef(null), map = useRef(null), layer = useRef(null);
       const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -2517,6 +2518,8 @@
       const pg = Math.min(page, pages - 1);
       const shownHouses = filteredHouses.slice(pg * PER, pg * PER + PER);
       useEffect(() => { setPage(0); }, [cat, q, kindF]);
+      useEffect(() => { setAssign(false); }, [selId]);
+      const needsLeader = sel && (sel.kind === "host" || assign);
       useEffect(() => { if (!houses.some((h) => h.id === selId && filteredOk(h)) && shownHouses[0]) setSelId(shownHouses[0].id); }, [cat, kindF, page]);
       const near = useMemo(() => {
         if (!sel || !selPt) return [];
@@ -2535,7 +2538,7 @@
           layer.current = window.L.layerGroup().addTo(map.current);
         }
         layer.current.clearLayers();
-        if (!selPt || sel?.kind === "both") return;
+        if (!selPt || !needsLeader) return;
         window.L.circle([selPt.lat, selPt.lng], { radius: radius * 1000, color: "#2B77E4", weight: 1.5, fillOpacity: 0.06 }).addTo(layer.current);
         window.L.marker([selPt.lat, selPt.lng], { icon: window.L.divIcon({ className: "", html: `<div class="gvv-house-pin">${escHtml(tagOf[sel.id].replace("CASA ", ""))}</div>`, iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 1000 })
           .bindTooltip(escHtml(`${tagOf[sel.id]} · ${sel.name}`)).addTo(layer.current);
@@ -2545,7 +2548,7 @@
         });
         map.current.setView([selPt.lat, selPt.lng], radius <= 3 ? 13 : radius <= 5 ? 12 : 11);
         setTimeout(() => map.current?.invalidateSize(), 50);
-      }, [selId, radius, withBoth, near.length, conns]);
+      }, [selId, radius, withBoth, near.length, conns, assign]);
       useEffect(() => () => { map.current?.remove(); map.current = null; }, []);
       const [ask, setAsk] = useState(null);
       const connect = async (l) => {
@@ -2612,16 +2615,21 @@
                 </dl>
                 {(sel.review_notes || "").trim() && <p className="gvv-conferir">⚠ {sel.review_notes}</p>}
               </div>
-              {sel.kind === "both" ? (
+              {!needsLeader ? (
                 <div className="gvv-house-near gvv-self-led">
                   <span className="gvv-tagno big">GVV pronto</span>
                   <h4 className="font-serif text-[30px] mt-3 leading-none">{sel.name.split(" ")[0]} lidera na própria casa</h4>
                   <p className="txt-muted mt-2">Quem é líder + anfitrião não precisa de outro líder. Esta casa já conta como GVV {tagOf[sel.id].replace("CASA ", "")} · {tagOf["net:" + sel.id]}.</p>
+                  {!selConn && <>
+                    <p className="txt-muted mt-4 text-sm">Esta pessoa ainda não está pronta para liderar? Ela fica só como anfitriã e você escolhe um líder.</p>
+                    <Button className="mt-2" onClick={() => setAssign(true)}><IUserPlus className="w-4 h-4" /> Adicionar um líder a este GVV</Button>
+                  </>}
                 </div>
               ) : (
               <div className="gvv-house-near">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="font-serif text-[22px]">Líderes até {radius} km</h4>
+                  {sel.kind === "both" && <button onClick={() => setAssign(false)} className="gvv-chip">← Ele mesmo lidera</button>}
                   <div className="flex flex-wrap items-center gap-2">
                     {[3, 5, 10].map((r) => <button key={r} onClick={() => setRadius(r)} className={`gvv-chip ${radius === r ? "on" : ""}`}>{r} km</button>)}
                   </div>
