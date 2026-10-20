@@ -2726,7 +2726,7 @@
               )}
             </div>
           )}
-          {ask && sel && (
+          {ask && sel && ReactDOM.createPortal(
             <div className="gvv-modal" onClick={() => setAsk(null)}>
               <div className="gvv-modal-card gvv-ask" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Confirmar conexão">
                 <p className="gvv-ask-kicker">Formar novo GVV</p>
@@ -2741,7 +2741,7 @@
                   <Button onClick={() => connect(ask.l)}>Conectar</Button>
                 </div>
               </div>
-            </div>
+            </div>, document.body
           )}
         </div>
       );
