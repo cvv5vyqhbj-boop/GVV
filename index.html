@@ -890,6 +890,15 @@
     .gvv-access-row { display:flex; flex-wrap: wrap; align-items:center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
     .gvv-access-row.pending { border-color: rgba(246,196,83,.45); }
     .gvv-access-row b { font-size: 14.5px; } .gvv-access-row p { font-size: 12.5px; color: var(--muted); overflow:hidden; text-overflow: ellipsis; }
+    .gvv-colhead.c-juniores { background: #F9F4EB; color: #000; } .gvv-colhead.c-juniores b { background: rgba(0,0,0,.1); }
+    .gvv-house.c-juniores::before { background: var(--gvv-cream); }
+    .gvv-cat-pill.c-juniores { background: rgba(249,244,235,.14); color: var(--gvv-cream); }
+    html[data-theme="light"] .gvv-cat-pill.c-juniores { background: #ece4d4; color: #000; }
+    .mm-node.cat.c-juniores { background: var(--gvv-cream); color: #000; } .mm-node.cat.c-juniores em { color: rgba(0,0,0,.65); }
+    .gvv-badge.lead { background: rgba(43,119,228,.18); border-color: rgba(43,119,228,.45); color: #8db8f4; }
+    html[data-theme="light"] .gvv-badge.lead { color: #1a56ad; }
+    .gvv-chip.kind.on { background: var(--gvv-lime); border-color: var(--gvv-lime); color: #000; }
+    .gvv-self-led { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; min-height: 260px; }
   </style>
 </head>
 <body>
@@ -978,7 +987,7 @@
       super_admin: "Administrador Geral", pastor: "Pastor", lider_projetos: "Líder de Projetos",
       midia: "Mídia/Comunicação",
       financeiro: "Financeiro", secretaria: "Secretaria", administrativo: "Administrativo",
-      lider: "Líder de departamento", membro: "Membro", coordenador: "Supervisor de GVVs",
+      lider: "Supervisor de rede", membro: "Membro", coordenador: "Supervisor de GVVs",
     };
     /* Quem dirige o fluxo (avança etapas, aprova, edita depois de criado).
        Líder de DEPARTAMENTO não dirige — propõe e depois só responde no chat. */
@@ -1001,8 +1010,8 @@
     };
     Object.values(PERMISSIONS).forEach((modules) => modules.push("mapageral"));
     ["super_admin","pastor","secretaria","administrativo","coordenador","lider"].forEach((r) => PERMISSIONS[r]?.push("interessados"));
-    ["super_admin","pastor","secretaria","administrativo","coordenador"].forEach((r) => PERMISSIONS[r]?.push("cadastros"));
-    PERMISSIONS.super_admin.push("acessos");
+    ["super_admin","pastor","secretaria","administrativo","coordenador","lider"].forEach((r) => PERMISSIONS[r]?.push("cadastros"));
+    PERMISSIONS.super_admin.push("acessos"); PERMISSIONS.pastor.push("acessos");
     const can = (role, mod) => (PERMISSIONS[role] || []).includes(mod);
     const isMember = (role) => role === "membro";
 
@@ -2069,10 +2078,21 @@
        Inscritos separados por categoria e, dentro dela, por tipo:
        líder + anfitrião · só anfitrião · só líder. */
     const GVV_ROSTER_CATS = [
-      { k: "misto", label: "Misto", test: (a) => /mist|adult|idos/i.test(a) || !/jove|adolesc|junior/i.test(a || "x") },
-      { k: "jovens", label: "Jovens", test: (a) => /jove/i.test(a) },
-      { k: "adolescentes", label: "Adolescentes / Juniores", test: (a) => /adolesc|junior/i.test(a) },
+      { k: "misto", label: "Misto", short: "MISTO" },
+      { k: "jovens", label: "Jovens", short: "JOVENS" },
+      { k: "adolescentes", label: "Adolescentes", short: "ADOL" },
+      { k: "juniores", label: "Juniores", short: "JUNIOR" },
     ];
+    /* Mesma regra do banco (gvv_network_of): vários públicos = misto. */
+    const gvvNetworkOf = (r) => {
+      if (r.network) return r.network;
+      const a = r.audience || "", n = r.name || "";
+      if (/junior/i.test(a) || /junior/i.test(n)) return "juniores";
+      if (a.includes(",")) return "misto";
+      if (/adolesc/i.test(a)) return "adolescentes";
+      if (/jove/i.test(a)) return "jovens";
+      return "misto";
+    };
     /* Coordenada usada para distâncias: ponto confirmado ou, na falta, o aproximado pelo CEP. */
     const gvvPoint = (r) => {
       const pick = (a, b) => (a !== null && a !== undefined && a !== "" && Number.isFinite(+a) && Number.isFinite(+b)) ? [+a, +b] : null;
@@ -2081,7 +2101,7 @@
       const ap = pick(r.approx_lat, r.approx_lng);
       return ap ? { lat: ap[0], lng: ap[1], approx: true } : null;
     };
-    const gvvCatOf = (r) => GVV_ROSTER_CATS.find((c) => c.test(r.audience || "")) || GVV_ROSTER_CATS[0];
+    const gvvCatOf = (r) => GVV_ROSTER_CATS.find((c) => c.k === gvvNetworkOf(r)) || GVV_ROSTER_CATS[0];
     const GVV_ROSTER_KINDS = [
       { k: "both", label: "Líder + anfitrião", color: "#2B77E4" },
       { k: "host", label: "Só anfitrião", color: "#C1ED28" },
@@ -2106,7 +2126,7 @@
       })(); }, []);
       const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const all = rows || [];
-      const inCat = (r, c) => c.test(r.audience || "");
+      const inCat = (r, c) => gvvCatOf(r) === c;
       const semCat = all.filter((r) => !GVV_ROSTER_CATS.some((c) => inCat(r, c)));
       const current = GVV_ROSTER_CATS.find((c) => c.k === cat);
       const base = cat === "sem" ? semCat : all.filter((r) => inCat(r, current));
@@ -2115,12 +2135,15 @@
       const addr = (r) => r.kind === "leader" ? r.home_address : r.address;
       const catIdx = (r) => GVV_ROSTER_CATS.indexOf(gvvCatOf(r));
       const byCatName = (a, b) => catIdx(a) - catIdx(b) || a.name.localeCompare(b.name, "pt-BR");
-      /* Casas: primeiro quem é só anfitrião (CASA 01…), depois líder+anfitrião. */
-      const houses = [...all.filter((r) => r.kind === "host").sort(byCatName), ...all.filter((r) => r.kind === "both").sort(byCatName)];
+      /* Casas com número fixo do banco (house_no). Sem número ainda: vão para o fim. */
+      const houses = all.filter((r) => r.kind !== "leader").sort((a, b) => (a.house_no ?? 9999) - (b.house_no ?? 9999) || byCatName(a, b));
       const leadersOnly = all.filter((r) => r.kind === "leader").sort(byCatName);
       const tagOf = useMemo(() => {
         const m = {};
-        houses.forEach((r, i) => { m[r.id] = `CASA ${String(i + 1).padStart(2, "0")}`; });
+        houses.forEach((r, i) => {
+          m[r.id] = `CASA ${String(r.house_no ?? i + 1).padStart(2, "0")}`;
+          m["net:" + r.id] = `${gvvCatOf(r).short} ${String(r.network_no ?? "?").padStart(2, "0")}`;
+        });
         leadersOnly.forEach((r, i) => { m[r.id] = `LÍDER ${String(i + 1).padStart(2, "0")}`; });
         return m;
       }, [rows]);
@@ -2163,7 +2186,7 @@
                     <React.Fragment key={kind.k}>
                       <div className={`gvv-rowhead k-${kind.k}`}><span>{kind.label}</span><b>{all.filter((r) => r.kind === kind.k).length}</b></div>
                       {GVV_ROSTER_CATS.map((c) => {
-                        const cell = all.filter((r) => r.kind === kind.k && gvvCatOf(r) === c).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+                        const cell = all.filter((r) => r.kind === kind.k && gvvCatOf(r) === c).sort((a, b) => (a.house_no ?? 9999) - (b.house_no ?? 9999) || a.name.localeCompare(b.name, "pt-BR"));
                         const shown = cell.filter((r) => (!onlyIssues || (r.review_notes || "").trim()) && (!q.trim() || norm([r.name, r.phone, r.neighborhood, r.city].join(" ")).includes(norm(q.trim()))));
                         return (
                           <div key={c.k} className={`gvv-cell k-${kind.k}`}>
@@ -2173,7 +2196,7 @@
                             {!shown.length ? <p className="gvv-empty">{cell.length ? "Nenhum com esse filtro" : "Ninguém ainda"}</p> : shown.slice(Math.min(cellPage[kind.k + c.k] || 0, Math.max(0, Math.ceil(shown.length / CELL_PER) - 1)) * CELL_PER).slice(0, CELL_PER).map((r) => {
                               return (
                                 <button key={r.id} className={`gvv-person ${(r.review_notes || "").trim() ? "warn" : ""}`} onClick={() => setOpen({ r, tag: tagOf[r.id], kind: kind.label, cat: c.label })}>
-                                  <span className="gvv-tagno">{tagOf[r.id]}</span>
+                                  <span className="gvv-tagno">{tagOf[r.id]}{tagOf["net:" + r.id] ? ` · ${tagOf["net:" + r.id]}` : ""}</span>
                                   <span className="gvv-pname">{r.name}</span>
                                   <span className="gvv-pmeta">{[r.neighborhood || r.city, (r.availability || "").split(" · ")[0]].filter(Boolean).join(" · ") || "—"}</span>
                                   {(r.review_notes || "").trim() && <span className="gvv-pwarn" title="Tem algo a conferir">⚠</span>}
@@ -2214,7 +2237,7 @@
           </>}
           {mode === "conectados" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvConnectedView all={all} tagOf={tagOf} />)}
           {mode === "mapa" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvMindMap houses={houses} leaders={leadersOnly} all={all} tagOf={tagOf} />)}
-          {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses.filter((r) => r.kind === "host")} leaders={all.filter((r) => r.kind === "leader")} tagOf={tagOf} />)}
+          {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses} leaders={all.filter((r) => r.kind === "leader")} tagOf={tagOf} />)}
           {mode === "tabela" && <>
           <div className="flex flex-wrap gap-2">
             {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-cat ${cat === c.k ? "on" : ""}`}>{c.label}<b>{all.filter((r) => inCat(r, c)).length}</b></button>)}
@@ -2464,6 +2487,7 @@
       const [conns, setConns] = useState([]);
       const [busy, setBusy] = useState("");
       const [page, setPage] = useState(0);
+      const [kindF, setKindF] = useState("");
       const PER = 8;
       const mapEl = useRef(null), map = useRef(null), layer = useRef(null);
       const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -2471,13 +2495,15 @@
       useEffect(() => { loadConns(); }, []);
       const connOf = (id) => conns.find((c) => c.leader_candidate_id === id || c.host_candidate_id === id);
       const nameOf = (id) => [...houses, ...leaders].find((r) => r.id === id)?.name || "";
-      const sel = houses.find((h) => h.id === selId) || null;
+      const filteredOk = (h) => (!cat || gvvCatOf(h).k === cat) && (!kindF || h.kind === kindF);
+      const sel = (houses.find((h) => h.id === selId && filteredOk(h))) || null;
       const selPt = sel ? gvvPoint(sel) : null;
-      const filteredHouses = houses.filter((h) => (!cat || gvvCatOf(h).k === cat) && (!q.trim() || norm([tagOf[h.id], h.name, h.neighborhood, h.city].join(" ")).includes(norm(q.trim()))));
+      const filteredHouses = houses.filter((h) => (!cat || gvvCatOf(h).k === cat) && (!kindF || h.kind === kindF) && (!q.trim() || norm([tagOf[h.id], tagOf["net:" + h.id], h.name, h.neighborhood, h.city].join(" ")).includes(norm(q.trim()))));
       const pages = Math.max(1, Math.ceil(filteredHouses.length / PER));
       const pg = Math.min(page, pages - 1);
       const shownHouses = filteredHouses.slice(pg * PER, pg * PER + PER);
-      useEffect(() => { setPage(0); }, [cat, q]);
+      useEffect(() => { setPage(0); }, [cat, q, kindF]);
+      useEffect(() => { if (!houses.some((h) => h.id === selId && filteredOk(h)) && shownHouses[0]) setSelId(shownHouses[0].id); }, [cat, kindF, page]);
       const near = useMemo(() => {
         if (!sel || !selPt) return [];
         return leaders.filter((l) => l.id !== sel.id && l.kind === "leader").map((l) => {
@@ -2486,6 +2512,7 @@
       }, [selId, radius, withBoth, leaders]);
       const noLoc = sel ? leaders.filter((l) => l.kind === "leader" && !gvvPoint(l)).length : 0;
       useEffect(() => {
+        if (map.current && !document.body.contains(mapEl.current)) { map.current.remove(); map.current = null; }
         if (!mapEl.current || !window.L) return;
         if (!map.current) {
           map.current = window.L.map(mapEl.current, { zoomControl: true }).setView([-25.47, -49.27], 12);
@@ -2494,7 +2521,7 @@
           layer.current = window.L.layerGroup().addTo(map.current);
         }
         layer.current.clearLayers();
-        if (!selPt) return;
+        if (!selPt || sel?.kind === "both") return;
         window.L.circle([selPt.lat, selPt.lng], { radius: radius * 1000, color: "#2B77E4", weight: 1.5, fillOpacity: 0.06 }).addTo(layer.current);
         window.L.marker([selPt.lat, selPt.lng], { icon: window.L.divIcon({ className: "", html: `<div class="gvv-house-pin">${escHtml(tagOf[sel.id].replace("CASA ", ""))}</div>`, iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 1000 })
           .bindTooltip(escHtml(`${tagOf[sel.id]} · ${sel.name}`)).addTo(layer.current);
@@ -2522,9 +2549,11 @@
       return (
         <div className="space-y-4">
           <div className="mm-card p-3 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
-            <Input label="Buscar casa de anfitrião (número, nome ou bairro)" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ex.: 07 ou Boqueirão" />
+            <Input label="Buscar casa (número, nome ou bairro)" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ex.: 07, misto 03 ou Boqueirão" />
             <div className="flex flex-wrap gap-2 pb-1">
-              <button onClick={() => setCat("")} className={`gvv-chip ${!cat ? "on" : ""}`}>Todas · {houses.length}</button>
+              {[["", "Todas"], ["host", "Só anfitrião"], ["both", "Líder + anfitrião"]].map(([k, l]) => <button key={k} onClick={() => setKindF(k)} className={`gvv-chip kind ${kindF === k ? "on" : ""}`}>{l} · {houses.filter((h) => !k || h.kind === k).length}</button>)}
+              <span className="w-px bg-[var(--line)] mx-1" />
+              <button onClick={() => setCat("")} className={`gvv-chip ${!cat ? "on" : ""}`}>Todas as redes</button>
               {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-chip ${cat === c.k ? "on" : ""}`}>{c.label} · {houses.filter((h) => gvvCatOf(h) === c).length}</button>)}
             </div>
           </div>
@@ -2533,12 +2562,12 @@
               const c = gvvCatOf(h), cn = connOf(h.id);
               return (
                 <button key={h.id} onClick={() => setSelId(h.id)} className={`gvv-house c-${c.k} ${selId === h.id ? "on" : ""} ${cn ? "done" : ""}`}>
-                  <span className="gvv-house-top"><span className="gvv-house-no" data-k="CASA">{tagOf[h.id].replace("CASA ", "")}</span><span className={`gvv-cat-pill c-${c.k}`}>{c.label.split(" /")[0]}</span></span>
+                  <span className="gvv-house-top"><span className="gvv-house-no" data-k="CASA">{tagOf[h.id].replace("CASA ", "")}</span><span className={`gvv-cat-pill c-${c.k}`}>{tagOf["net:" + h.id]}</span></span>
                   <span className="gvv-house-name">{h.name}</span>
                   <span className="gvv-house-meta"><IPin className="w-3.5 h-3.5" /> {h.neighborhood || h.city || "sem bairro"}</span>
                   <span className="gvv-house-foot">
-                    {cn ? <span className="gvv-badge ok">✓ Conectada</span> : <span className="gvv-badge">Livre</span>}
-                    {h.kind === "both" && <span className="gvv-badge">Também lidera</span>}
+                    {h.kind === "both" ? null : cn ? <span className="gvv-badge ok">✓ Conectada</span> : <span className="gvv-badge">Precisa de líder</span>}
+                    {h.kind === "both" && <span className="gvv-badge lead">Líder + anfitrião</span>}
                     {!gvvPoint(h) && <span className="gvv-badge warn">Sem local</span>}
                   </span>
                 </button>
@@ -2559,7 +2588,7 @@
               <div className="gvv-house-info">
                 <span className="gvv-tagno big">{tagOf[sel.id]}</span>
                 <h3 className="font-serif text-[28px] mt-2 leading-none">{sel.name}</h3>
-                <p className="txt-muted text-sm mt-1">{gvvCatOf(sel).label} · anfitrião (precisa de líder)</p>
+                <p className="txt-muted text-sm mt-1">{tagOf["net:" + sel.id]} · {sel.kind === "both" ? "líder + anfitrião" : "anfitrião (precisa de líder)"}</p>
                 <dl className="gvv-dl">
                   <dt>Endereço</dt><dd>{sel.address || "—"}</dd>
                   <dt>Dias · turno</dt><dd>{sel.availability || "—"}</dd>
@@ -2569,6 +2598,13 @@
                 </dl>
                 {(sel.review_notes || "").trim() && <p className="gvv-conferir">⚠ {sel.review_notes}</p>}
               </div>
+              {sel.kind === "both" ? (
+                <div className="gvv-house-near gvv-self-led">
+                  <span className="gvv-tagno big">GVV pronto</span>
+                  <h4 className="font-serif text-[30px] mt-3 leading-none">{sel.name.split(" ")[0]} lidera na própria casa</h4>
+                  <p className="txt-muted mt-2">Quem é líder + anfitrião não precisa de outro líder. Esta casa já conta como GVV {tagOf[sel.id].replace("CASA ", "")} · {tagOf["net:" + sel.id]}.</p>
+                </div>
+              ) : (
               <div className="gvv-house-near">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="font-serif text-[22px]">Líderes até {radius} km</h4>
@@ -2602,6 +2638,7 @@
                   <p className="text-[12px] txt-faint mt-2">* distância aproximada pelo CEP (linha reta). {noLoc ? `${noLoc} líder(es) sem endereço não entram no cálculo.` : ""}</p>
                 </>}
               </div>
+              )}
             </div>
           )}
           {ask && sel && (
@@ -2627,9 +2664,10 @@
 
     /* ===================== ACESSOS (aprovar supervisores) ===================== */
     const GVV_ACCESS_ROLES = [
-      { value: "coordenador", label: "Supervisor de GVVs" },
-      { value: "lider", label: "Líder de GVV" },
-      { value: "super_admin", label: "Administrador (ADM)" },
+      { value: "super_admin", label: "ADM supremo" },
+      { value: "pastor", label: "Pastor (ADM supremo)" },
+      { value: "coordenador", label: "Supervisor geral (todas as redes)" },
+      { value: "lider", label: "Supervisor de rede" },
     ];
     const GvvAccessView = ({ profile, data }) => {
       const toast = useToast();
@@ -2650,8 +2688,12 @@
           <Avatar name={p.name} size={40} />
           <div className="min-w-0 flex-1"><b>{p.name}</b><p>{p.email}</p></div>
           {p.active ? <>
-            <span className="gvv-badge ok">{roleLabel(p.role)}</span>
+            <span className="gvv-badge ok">{roleLabel(p.role)}{p.role === "lider" && p.gvv_network ? ` · ${GVV_ROSTER_CATS.find((c) => c.k === p.gvv_network)?.label}` : ""}</span>
             {p.id !== profile.id && <>
+              {p.role === "lider" && <select className={inputCls + " !w-auto"} value={p.gvv_network || ""} onChange={(e) => save(p, { gvv_network: e.target.value || null }, "Rede atualizada.")} disabled={busy === p.id}>
+                <option value="">Escolha a rede…</option>
+                {GVV_ROSTER_CATS.map((c) => <option key={c.k} value={c.k}>Rede {c.label}</option>)}
+              </select>}
               <select className={inputCls + " !w-auto"} value={p.role} onChange={(e) => save(p, { role: e.target.value }, "Papel atualizado.")} disabled={busy === p.id}>
                 {GVV_ACCESS_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                 {!GVV_ACCESS_ROLES.some((r) => r.value === p.role) && <option value={p.role}>{roleLabel(p.role)}</option>}
@@ -2662,14 +2704,22 @@
             <select className={inputCls + " !w-auto"} value={pick[p.id] || "coordenador"} onChange={(e) => setPick((s) => ({ ...s, [p.id]: e.target.value }))}>
               {GVV_ACCESS_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
-            <Button size="sm" onClick={() => save(p, { active: true, role: pick[p.id] || "coordenador" }, `${p.name.split(" ")[0]} liberado(a).`)} disabled={busy === p.id}>Aceitar</Button>
+            {(pick[p.id] || "coordenador") === "lider" && <select className={inputCls + " !w-auto"} value={pick["net:" + p.id] || ""} onChange={(e) => setPick((s) => ({ ...s, ["net:" + p.id]: e.target.value }))}>
+              <option value="">Qual rede?</option>
+              {GVV_ROSTER_CATS.map((c) => <option key={c.k} value={c.k}>Rede {c.label}</option>)}
+            </select>}
+            <Button size="sm" onClick={() => {
+              const role = pick[p.id] || "coordenador", net = pick["net:" + p.id] || null;
+              if (role === "lider" && !net) return toast.error("Escolha a rede deste supervisor.");
+              save(p, { active: true, role, gvv_network: role === "lider" ? net : null }, `${p.name.split(" ")[0]} liberado(a).`);
+            }} disabled={busy === p.id}>Aceitar</Button>
           </>}
         </div>
       );
       return (
         <div className="space-y-5">
           <div><h2 className="font-serif text-[26px] leading-tight">Acessos</h2>
-            <p className="txt-muted text-sm">Quem se cadastra como supervisor aparece aqui. Aceite e escolha o papel.</p></div>
+            <p className="txt-muted text-sm">ADM supremo vê tudo · Supervisor geral vê todas as redes · Supervisor de rede vê só a rede dele.</p></div>
           <section className="mm-card overflow-hidden">
             <header className="gvv-table-head"><i style={{ background: "#f6c453" }} /><h3>Aguardando aprovação</h3><span>{pending.length}</span></header>
             {!pending.length ? <p className="p-4 text-sm txt-muted">Ninguém esperando.</p> : <div className="p-3 grid gap-2">{pending.map((p) => <Row key={p.id} p={p} />)}</div>}
