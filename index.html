@@ -952,6 +952,13 @@
     }
     /* Mapas ficam em camada própria: nunca passam por cima de janelas */
     .gvv-house-map, .gvv-map, .gvv-mm-wrap { position: relative; isolation: isolate; z-index: 0; }
+    /* Sugestões de endereço */
+    .gvv-ac { position: relative; width: 100%; }
+    .gvv-ac-list { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 60; background: #fff; color: #000; border-radius: 12px; box-shadow: 0 18px 40px -12px rgba(0,0,0,.55); overflow: hidden; padding: 4px; }
+    .gvv-ac-list li { display:flex; gap: 10px; align-items:flex-start; padding: 10px 12px; border-radius: 9px; cursor: pointer; }
+    .gvv-ac-list li svg { color: #2B77E4; margin-top: 3px; flex-shrink: 0; }
+    .gvv-ac-list li span { display:flex; flex-direction:column; } .gvv-ac-list li b { font-size: 15px; } .gvv-ac-list li small { font-size: 13px; color: #555; }
+    .gvv-ac-list li:hover, .gvv-ac-list li.on { background: #eef4fd; }
   </style>
 </head>
 <body>
@@ -1893,6 +1900,66 @@
       </div>
     );
 
+    /* Endereço com sugestões: só Curitiba e região metropolitana.
+       Rua digitada → Photon (OpenStreetMap). CEP (8 números) → ViaCEP. */
+    const GVV_RMC_BBOX = "-49.75,-25.85,-48.95,-25.15";
+    const GvvAddressInput = ({ value, onChange, onPick }) => {
+      const [opts, setOpts] = useState([]);
+      const [open, setOpen] = useState(false);
+      const [hi, setHi] = useState(-1);
+      const timer = useRef(null), seq = useRef(0);
+      const search = (txt) => {
+        clearTimeout(timer.current);
+        const t = txt.trim(), digits = t.replace(/\D/g, "");
+        if (t.length < 3) { setOpts([]); return; }
+        timer.current = setTimeout(async () => {
+          const my = ++seq.current;
+          try {
+            let list = [];
+            if (digits.length === 8 && /^\d[\d.\- ]*$/.test(t)) {
+              const c = await fetch(`https://viacep.com.br/ws/${digits}/json/`).then((r) => r.json());
+              if (!c.erro) list = [{ street: c.logradouro, district: c.bairro, city: c.localidade, cep: c.cep }];
+            } else {
+              const j = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(t)}&bbox=${GVV_RMC_BBOX}&limit=8&lang=default&layer=street&layer=house`).then((r) => r.json());
+              const seen = new Set();
+              list = (j.features || []).map((f) => f.properties).filter((p) => p.state === "Paraná" || !p.state).map((p) => ({
+                street: p.street || p.name, number: p.housenumber || "", district: p.district || p.locality || "", city: p.city || p.county || "", cep: p.postcode || "",
+              })).filter((o) => o.street && o.city).filter((o) => { const k = [o.street, o.district, o.city].join("|"); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+            }
+            if (my === seq.current) { setOpts(list); setOpen(true); setHi(-1); }
+          } catch (e) { if (my === seq.current) setOpts([]); }
+        }, 350);
+      };
+      const pick = (o) => {
+        const text = [o.street, o.district, o.city].filter(Boolean).join(", ") + (o.cep ? ` · CEP ${o.cep}` : "");
+        onChange(text); onPick?.(o); setOpen(false); setOpts([]);
+      };
+      const onKey = (e) => {
+        if (!open || !opts.length) return;
+        if (e.key === "ArrowDown") { e.preventDefault(); setHi((h) => Math.min(opts.length - 1, h + 1)); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); setHi((h) => Math.max(0, h - 1)); }
+        else if (e.key === "Enter" && hi >= 0) { e.preventDefault(); pick(opts[hi]); }
+        else if (e.key === "Escape") setOpen(false);
+      };
+      return (
+        <div className="gvv-ac">
+          <input className="gvv-input" autoComplete="off" placeholder="Comece a digitar a rua ou o CEP" value={value}
+            onChange={(e) => { onChange(e.target.value); search(e.target.value); }} onKeyDown={onKey}
+            onFocus={() => opts.length && setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+            role="combobox" aria-expanded={open} aria-autocomplete="list" />
+          {open && opts.length > 0 && (
+            <ul className="gvv-ac-list" role="listbox">
+              {opts.map((o, i) => (
+                <li key={i} role="option" aria-selected={i === hi} className={i === hi ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); pick(o); }}>
+                  <IPin className="w-4 h-4" /><span><b>{o.street}{o.number ? `, ${o.number}` : ""}</b><small>{[o.district, o.city, o.cep].filter(Boolean).join(" · ")}</small></span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+    };
+
     const GvvJoinForm = () => {
       const pre = (() => { try { return JSON.parse(sessionStorage.getItem("gvv_pref_cell") || "null"); } catch (e) { return null; } })();
       const [f, setF] = useState({ full_name: "", phone: "", age: "", marital_status: "", sex: "", is_member: "", address: "", number: "" });
@@ -1951,7 +2018,7 @@
               <div className="gvv-field member"><span className="gvv-tag blue">Membro</span>
                 <GvvChecks name="member" options={[["sim", "Sim"], ["nao", "Não"]]} value={f.is_member} onChange={set("is_member")} /></div>
               <label className="gvv-field addr"><span className="gvv-tag blue">Endereço ou CEP</span>
-                <input className="gvv-input" autoComplete="street-address" value={f.address} onChange={(e) => set("address")(e.target.value)} /></label>
+                <GvvAddressInput value={f.address} onChange={set("address")} onPick={(o) => { if (o.number && !f.number) set("number")(o.number); }} /></label>
               <label className="gvv-field num"><span className="gvv-tag blue">Número</span>
                 <input className="gvv-input" inputMode="numeric" value={f.number} onChange={(e) => set("number")(e.target.value)} /></label>
             </div>

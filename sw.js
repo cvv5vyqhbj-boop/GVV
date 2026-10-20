@@ -6,7 +6,7 @@
    • Supabase    → nunca cacheia (dado precisa ser fresco); offline vira erro
                    tratado pela fila do app.
 */
-const VERSION = "gvv-v16";
+const VERSION = "gvv-v17";
 const SHELL = `${VERSION}-shell`;
 const ASSETS = `${VERSION}-assets`;
 
