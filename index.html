@@ -725,6 +725,24 @@
     .gvv-pin.on { transform: scale(1.45); box-shadow: 0 0 0 6px rgba(193,237,40,.55), 0 2px 8px rgba(0,0,0,.45); }
     .gvv-me { width: 20px; height: 20px; border-radius: 99px; background: var(--gvv-lime); border: 3px solid #000; box-shadow: 0 0 0 8px rgba(193,237,40,.3); }
     .gvv-church { font: 400 14px/1 var(--gvv-display); letter-spacing:.03em; background:#000; color: var(--gvv-cream); padding: 6px 8px; border-radius: 6px; text-align:center; border: 1.5px solid var(--gvv-cream); }
+    /* Aba Cadastros: tabelas bem visíveis */
+    .gvv-cat { display:inline-flex; align-items:center; gap:10px; padding: 10px 16px; border-radius: 12px; font-family: var(--gvv-display); text-transform: uppercase; font-size: 20px; letter-spacing:.01em; background: var(--surface-2); border: 1px solid var(--line); color: var(--fg); }
+    .gvv-cat b { font-family: "Inter Tight", sans-serif; font-size: 13px; font-weight: 800; background: var(--surface-hi); padding: 2px 8px; border-radius: 99px; }
+    .gvv-cat.on { background: var(--gvv-blue); border-color: var(--gvv-blue); color: #fff; }
+    .gvv-cat.on b { background: var(--gvv-lime); color: #000; }
+    .gvv-table-head { display:flex; align-items:center; gap:10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .gvv-table-head i { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line-strong); }
+    .gvv-table-head h3 { font-family: var(--gvv-display); text-transform: uppercase; font-size: 22px; letter-spacing:.01em; }
+    .gvv-table-head span { margin-left:auto; font-weight:800; font-size: 13px; background: var(--surface-hi); padding: 2px 10px; border-radius: 99px; }
+    .gvv-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 980px; }
+    .gvv-table th { text-align:left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; padding: 10px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap; position: sticky; top: 0; }
+    .gvv-table td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+    .gvv-table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+    .gvv-table tbody tr:hover td { background: var(--accent-soft); }
+    .gvv-table td.name { font-weight: 700; min-width: 190px; } .gvv-table td.name small { display:block; font-weight:500; color: var(--muted); }
+    .gvv-table td.addr { min-width: 220px; } .gvv-table td.note { min-width: 260px; max-width: 420px; color: var(--muted); }
+    .gvv-table tr.warn td.note { color: #b7791f; font-weight: 600; }
+    html[data-theme="dark"] .gvv-table tr.warn td.note { color: #f6c453; }
   </style>
 </head>
 <body>
@@ -836,6 +854,7 @@
     };
     Object.values(PERMISSIONS).forEach((modules) => modules.push("mapageral"));
     ["super_admin","pastor","secretaria","administrativo","coordenador","lider"].forEach((r) => PERMISSIONS[r]?.push("interessados"));
+    ["super_admin","pastor","secretaria","administrativo","coordenador"].forEach((r) => PERMISSIONS[r]?.push("cadastros"));
     const can = (role, mod) => (PERMISSIONS[role] || []).includes(mod);
     const isMember = (role) => role === "membro";
 
@@ -1896,6 +1915,100 @@
       if (r === "supervisor") return <LoginView kind="supervisor" />;
       if (r === "adm") return <LoginView kind="adm" />;
       return <GvvPublicHome />;
+    };
+
+    /* ===================== CADASTROS (tabelas) =====================
+       Inscritos separados por categoria e, dentro dela, por tipo:
+       líder + anfitrião · só anfitrião · só líder. */
+    const GVV_ROSTER_CATS = [
+      { k: "misto", label: "Misto", test: (a) => /mist/i.test(a) },
+      { k: "jovens", label: "Jovens", test: (a) => /jove/i.test(a) },
+      { k: "adolescentes", label: "Adolescentes / Juniores", test: (a) => /adolesc|junior/i.test(a) },
+      { k: "adultos", label: "Adultos", test: (a) => /adult|idos/i.test(a) },
+    ];
+    const GVV_ROSTER_KINDS = [
+      { k: "both", label: "Líder + anfitrião", color: "#2B77E4" },
+      { k: "host", label: "Só anfitrião", color: "#C1ED28" },
+      { k: "leader", label: "Só líder", color: "#F9F4EB" },
+    ];
+    const gvvAge = (d) => { if (!d) return ""; const b = new Date(d + "T12:00:00"), n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n < new Date(n.getFullYear(), b.getMonth(), b.getDate())) a--; return a > 0 && a < 120 ? a : ""; };
+    const GVV_STATUS_LABEL = { pending: "Aguardando", approved: "Aprovado", rejected: "Recusado" };
+    const GvvRosterView = () => {
+      const [rows, setRows] = useState(null);
+      const [err, setErr] = useState("");
+      const [cat, setCat] = useState("misto");
+      const [q, setQ] = useState("");
+      const [onlyIssues, setOnlyIssues] = useState(false);
+      useEffect(() => { (async () => {
+        const { data, error } = await supabase.from("gvv_candidates").select("*").order("name");
+        if (error) { setErr("Não foi possível carregar os cadastros. Se é a primeira vez, rode o SQL de importação."); setRows([]); return; }
+        setRows(data || []);
+      })(); }, []);
+      const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+      const all = rows || [];
+      const inCat = (r, c) => c.test(r.audience || "");
+      const semCat = all.filter((r) => !GVV_ROSTER_CATS.some((c) => inCat(r, c)));
+      const current = GVV_ROSTER_CATS.find((c) => c.k === cat);
+      const base = cat === "sem" ? semCat : all.filter((r) => inCat(r, current));
+      const list = base.filter((r) => (!onlyIssues || (r.review_notes || "").trim()) &&
+        (!q.trim() || norm([r.name, r.phone, r.neighborhood, r.city, r.address, r.home_address].join(" ")).includes(norm(q.trim()))));
+      const addr = (r) => r.kind === "leader" ? r.home_address : r.address;
+      const status = (r) => r.kind === "host" ? r.host_status : r.kind === "leader" ? r.leader_status : `${GVV_STATUS_LABEL[r.leader_status]} / ${GVV_STATUS_LABEL[r.host_status]}`;
+      const exportCsv = () => {
+        const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+        const head = ["Categoria", "Tipo", "Nome", "WhatsApp", "Idade", "Membro há", "Dias e turno", "Bairro", "Cidade", "Endereço", "Situação", "Conferir"];
+        const lines = list.map((r) => [current?.label || "Sem categoria", GVV_ROSTER_KINDS.find((k) => k.k === r.kind)?.label, r.name, r.phone, gvvAge(r.birth_date), r.member_since, r.availability, r.neighborhood, r.city, addr(r), GVV_STATUS_LABEL[status(r)] || status(r), r.review_notes].map(esc).join(";"));
+        const blob = new Blob(["﻿" + [head.map(esc).join(";"), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `gvv-${cat}-${todayISO()}.csv`; a.click();
+      };
+      return (
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div><h2 className="font-serif text-[26px] leading-tight">Cadastros</h2>
+              <p className="txt-muted text-sm">{all.length} inscritos · separados por categoria e por tipo. Linhas com ⚠ têm algo a conferir.</p></div>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!list.length}>Baixar planilha desta aba</Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-cat ${cat === c.k ? "on" : ""}`}>{c.label}<b>{all.filter((r) => inCat(r, c)).length}</b></button>)}
+            {semCat.length > 0 && <button onClick={() => setCat("sem")} className={`gvv-cat ${cat === "sem" ? "on" : ""}`}>Sem categoria<b>{semCat.length}</b></button>}
+          </div>
+          <div className="mm-card p-4 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
+            <Input label="Buscar nome, telefone, bairro ou cidade" value={q} onChange={(e) => setQ(e.target.value)} />
+            <label className="flex items-center gap-2 text-sm font-semibold pb-2"><input type="checkbox" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} /> Só os que precisam conferir</label>
+          </div>
+          {err && <p className="text-rose-300 text-sm" role="alert">{err}</p>}
+          {rows === null ? <p role="status" className="txt-muted">Carregando…</p> : GVV_ROSTER_KINDS.map((kind) => {
+            const part = list.filter((r) => r.kind === kind.k);
+            return (
+              <section key={kind.k} className="mm-card overflow-hidden">
+                <header className="gvv-table-head"><i style={{ background: kind.color }} /><h3>{kind.label}</h3><span>{part.length}</span></header>
+                {!part.length ? <p className="p-4 text-sm txt-muted">Ninguém nesta lista.</p> : (
+                  <div className="overflow-x-auto">
+                    <table className="gvv-table">
+                      <thead><tr><th>Nome</th><th>WhatsApp</th><th>Idade</th><th>Membro há</th>{kind.k !== "leader" && <th>Dias · turno</th>}<th>Bairro · cidade</th><th>Endereço</th><th>Situação</th><th>Conferir</th></tr></thead>
+                      <tbody>
+                        {part.map((r) => (
+                          <tr key={r.id} className={(r.review_notes || "").trim() ? "warn" : ""}>
+                            <td className="name">{r.name}{r.audience && cat !== "sem" && /,/.test(r.audience) && <small>{r.audience}</small>}</td>
+                            <td>{r.phone ? <a href={waLink(r.phone, `Olá, ${r.name.split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold whitespace-nowrap">{r.phone}</a> : "—"}</td>
+                            <td className="tnum">{gvvAge(r.birth_date) || "—"}</td>
+                            <td>{r.member_since || "—"}</td>
+                            {kind.k !== "leader" && <td>{r.availability || "—"}</td>}
+                            <td>{[r.neighborhood, r.city].filter(Boolean).join(" · ") || "—"}</td>
+                            <td className="addr">{addr(r) || <span className="txt-faint">Sem endereço</span>}</td>
+                            <td>{GVV_STATUS_LABEL[status(r)] || status(r)}</td>
+                            <td className="note">{(r.review_notes || "").trim() ? <>⚠ {r.review_notes}</> : <span className="txt-faint">OK</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      );
     };
 
     /* ===================== INTERESSADOS (formulário público) ===================== */
@@ -10798,6 +10911,7 @@
     /* Sistema GVV separado: só os módulos da rede de GVVs. */
     const NAV_GROUPS = [
       { section: "Rede GVV", items: [
+        { key: "cadastros", label: "Cadastros", icon: IUsers },
         { key: "celulas", label: "GVVs", icon: IHeart },
         { key: "mapageral", label: "Mapa · visão geral", icon: IPin },
         { key: "interessados", label: "Interessados", icon: IUserPlus },
@@ -10827,7 +10941,7 @@
     const modColor = (k) => MOD_COLOR[k] || "#2456a6";
     const PAGE_TITLES = {
       inicio: "Início", dashboard: "Visão geral", membros: "Membros", departamentos: "Departamentos",
-      lideranca: "Liderança", presenca: "Presença", escala: "Escala", celulas: "GVVs", mapageral: "Mapa · visão geral", interessados: "Interessados", kids: "Kids · Check-in", batismos: "Batismos",
+      lideranca: "Liderança", presenca: "Presença", escala: "Escala", cadastros: "Cadastros", celulas: "GVVs", mapageral: "Mapa · visão geral", interessados: "Interessados", kids: "Kids · Check-in", batismos: "Batismos",
       discipulado: "Discipulado", celula: "Meu GVV", meudepartamento: "Meu departamento",
       minhapresenca: "Minha presença", meusfilhos: "Meus filhos", meudiscipulado: "Meu discipulado",
       meusdados: "Meus dados", financas: "Finanças",
@@ -12945,6 +13059,7 @@
           case "mapageral": return <CellsOverview />;
           case "celulas": return <CellsView profile={profile} data={data} />;
           case "interessados": return <GvvInterestsView data={data} />;
+          case "cadastros": return <GvvRosterView />;
           case "kids": return <KidsView profile={profile} data={data} />;
           case "presenca": return <AttendanceView profile={profile} data={data} />;
           case "escala": return <EscalaView profile={profile} data={data} />;
