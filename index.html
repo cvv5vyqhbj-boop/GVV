@@ -2993,10 +2993,11 @@
         setBusy(true);
         try {
           if (signup) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) throw new Error("E-mail inválido. Confira se digitou certo.");
             if (name.trim().split(/\s+/).length < 2) throw new Error("Escreva seu nome completo.");
             if (password.length < 8) throw new Error("A senha precisa ter pelo menos 8 caracteres.");
             if (password !== password2) throw new Error("As duas senhas não são iguais.");
-            const { data: res, error } = await supabase.auth.signUp({ email, password, options: { data: { name: name.trim() }, emailRedirectTo: location.origin + "/" } });
+            const { data: res, error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password, options: { data: { name: name.trim() }, emailRedirectTo: location.origin + "/" } });
             if (error) throw error;
             if (!res.session) setSent(true);
             return;
@@ -3014,7 +3015,10 @@
           const m = err.message || "";
           toast.error(m === "Invalid login credentials" ? "E-mail ou senha incorretos."
             : /already registered/i.test(m) ? "Este e-mail já tem conta. Use Entrar ou Esqueci minha senha."
-            : /rate limit/i.test(m) ? "Muitas tentativas agora. Espere alguns minutos e tente de novo."
+            : /email rate limit/i.test(m) ? "Limite de e-mails do sistema atingido. Avise o administrador (precisa desligar a confirmação por e-mail no Supabase)."
+            : /rate limit|too many/i.test(m) ? "Muitas tentativas seguidas neste aparelho. Espere 5 minutos e tente de novo."
+            : /valid email|invalid.*email/i.test(m) ? "E-mail inválido. Confira se digitou certo."
+            : /password/i.test(m) && /least|short|weak/i.test(m) ? "Senha fraca: use pelo menos 8 caracteres."
             : m || "Erro ao entrar.");
         } finally { setBusy(false); }
       };
