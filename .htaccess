@@ -1,0 +1,7 @@
+# Hostinger (Apache/LiteSpeed): links curtos do GVV abrem o app
+RewriteEngine On
+RewriteRule ^(mapa|participar|supervisor|adm)/?$ /index.html [L]
+# sw.js e index.html sempre atualizados
+<FilesMatch "^(sw\.js|index\.html)$">
+  Header set Cache-Control "no-cache"
+</FilesMatch>

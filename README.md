@@ -1,7 +1,7 @@
 # Sistema GVV — ADVEC Curitiba
 
 Sistema separado, só da rede de GVVs, com **banco próprio**: Supabase `ctchnsskqaouihvdjlhv`
-(não usa o banco nem os logins do ADVEC). Site: https://gvvadveccuritiba.netlify.app
+(não usa o banco nem os logins do ADVEC). Site: https://gvvadveccuritiba.online
 
 ## Área pública (sem login)
 - `/` — tela inicial: **Quero fazer parte de um GVV**, **Ver GVVs perto de mim**, **Login supervisor**, e **Login ADM** (pequeno, canto direito).
@@ -29,8 +29,8 @@ Sem build. Publica a pasta inteira (`netlify.toml` → `publish = "."`).
 1. Supabase → Authentication → Users → Add user (seu e-mail + senha, "Auto Confirm User").
 2. SQL Editor → New query → colar `supabase/GVV_BANCO_NOVO.sql` inteiro → Run.
    Cria tudo vazio e transforma esse usuário em ADM geral.
-3. Authentication → URL Configuration → Site URL `https://gvvadveccuritiba.netlify.app`
-   e Redirect URLs `https://gvvadveccuritiba.netlify.app/**`.
+3. Authentication → URL Configuration → Site URL `https://gvvadveccuritiba.online`
+   e Redirect URLs `https://gvvadveccuritiba.online/**`.
 
 ## SQL (histórico, banco antigo)
 **Rodar uma vez:** `supabase/gvv-publico-2026-10-18.sql` (Supabase → SQL Editor).
