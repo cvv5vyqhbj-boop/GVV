@@ -913,6 +913,43 @@
     html[data-theme="light"] .gvv-badge.lead { color: #1a56ad; }
     .gvv-chip.kind.on { background: var(--gvv-lime); border-color: var(--gvv-lime); color: #000; }
     .gvv-self-led { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; min-height: 260px; }
+    /* ===== Impressão ===== */
+    .gvv-print-only { display: none; }
+    @media print {
+      @page { size: A4 landscape; margin: 10mm; }
+      html, body { background: #fff !important; color: #000 !important; }
+      html[data-theme] { --bg:#fff; --surface:#fff; --surface-2:#f6f6f6; --surface-hi:#efefef; --fg:#000; --fg-soft:#111; --muted:#444; --faint:#666; --line:#ccc; --line-strong:#999; --line-soft:#e3e3e3; --accent-soft:#eef4fd; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: none !important; text-shadow: none !important; }
+      aside, header.sticky, .bottom-nav, .gvv-switch, .gvv-no-print, .gvv-zoom, .gvv-pager, .gvv-cellpager, .leaflet-control-container,
+      button.gvv-chip, .mm-card:has(input), .gvv-search, [role="status"], .gvv-modal { display: none !important; }
+      main, main > * { padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+      .gvv-print-only { display: flex !important; }
+      .gvv-print-head { justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #2B77E4; padding-bottom: 6px; margin-bottom: 10px; }
+      .gvv-print-head b { font-family: var(--gvv-display); font-size: 22px; font-weight: 400; color: #2B77E4; margin-right: 10px; text-transform: uppercase; }
+      .gvv-print-head span { font-family: var(--gvv-display); font-size: 22px; text-transform: uppercase; }
+      .gvv-print-head small { font-size: 10px; color: #444; }
+
+      .gvv-board-wrap, .gvv-mm-wrap { overflow: visible !important; max-height: none !important; border: none !important; padding: 0 !important; }
+      .gvv-board { min-width: 0 !important; grid-template-columns: 90px repeat(var(--cols), 1fr) !important; gap: 4px !important; }
+      .gvv-rowhead { position: static !important; font-size: 13px !important; padding: 6px !important; }
+      .gvv-colhead { font-size: 15px !important; padding: 6px 8px !important; border-radius: 6px !important; }
+      .gvv-cell { min-height: 0 !important; padding: 4px !important; gap: 3px !important; break-inside: auto; }
+      .gvv-person { padding: 3px 6px !important; border-radius: 4px !important; break-inside: avoid; }
+      .gvv-pname { font-size: 10.5px !important; } .gvv-pmeta { font-size: 9px !important; } .gvv-tagno { font-size: 9px !important; color: #1a56ad !important; }
+      .gvv-houses { grid-template-columns: repeat(5, 1fr) !important; gap: 5px !important; }
+      .gvv-house { min-height: 0 !important; padding: 6px 8px !important; border-radius: 6px !important; break-inside: avoid; background: #fff !important; }
+      .gvv-house-no { font-size: 20px !important; } .gvv-house-no::before { font-size: 7px !important; }
+      .gvv-house-name { font-size: 10.5px !important; } .gvv-house-meta { font-size: 9px !important; } .gvv-badge { font-size: 8px !important; padding: 1px 5px !important; }
+      .gvv-cat-pill { font-size: 8px !important; padding: 1px 5px !important; }
+      .gvv-house.done .gvv-house-no { color: #4d6200 !important; }
+      .mm-node { break-inside: avoid; }
+      .gvv-table { min-width: 0 !important; font-size: 9.5px !important; } .gvv-table th, .gvv-table td { padding: 3px 5px !important; }
+      .gvv-table thead th { position: static !important; }
+      section.mm-card { break-inside: auto; border: 1px solid #ccc !important; }
+      .mm-card { background: #fff !important; }
+      .gvv-colhead.c-adolescentes, .gvv-colhead.c-juniores { border: 1px solid #999; }
+      a { color: #000 !important; text-decoration: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -2130,6 +2167,7 @@
       const [q, setQ] = useState("");
       const [onlyIssues, setOnlyIssues] = useState(false);
       const [mode, setMode] = useState("casas");
+      const printing = useGvvPrinting();
       const [cellPage, setCellPage] = useState({});
       const CELL_PER = 4;
       const [open, setOpen] = useState(null);
@@ -2183,8 +2221,10 @@
                 <button className={mode === "tabela" ? "on" : ""} onClick={() => setMode("tabela")}>Tabela</button>
               </div>
               {mode === "tabela" && <Button variant="outline" size="sm" onClick={exportCsv} disabled={!list.length}>Baixar planilha desta aba</Button>}
+              <Button variant="outline" size="sm" onClick={gvvPrint}>🖨 Imprimir</Button>
             </div>
           </div>
+          <GvvPrintHead title={{ quadro: "Quadro de cadastros", casas: "Casas", conectados: "GVVs conectados", mapa: "Mapa mental", tabela: "Tabela de cadastros" }[mode]} sub={`${all.length} inscritos`} />
           {mode === "quadro" && <>
             <div className="mm-card p-3 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
               <Input label="Buscar nome, telefone, bairro ou cidade" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -2205,9 +2245,9 @@
                         return (
                           <div key={c.k} className={`gvv-cell k-${kind.k}`}>
                             <div className="gvv-cell-top"><span>{kind.label} · {c.label}</span><b>{cell.length}</b></div>
-                            {(() => { const key = kind.k + c.k, np = Math.max(1, Math.ceil(shown.length / CELL_PER)), cp = Math.min(cellPage[key] || 0, np - 1);
+                            {!printing && (() => { const key = kind.k + c.k, np = Math.max(1, Math.ceil(shown.length / CELL_PER)), cp = Math.min(cellPage[key] || 0, np - 1);
                               return np > 1 ? <div className="gvv-cellpager"><button onClick={() => setCellPage((s) => ({ ...s, [key]: Math.max(0, cp - 1) }))} disabled={cp === 0}>‹</button><span>{cp + 1} / {np}</span><button onClick={() => setCellPage((s) => ({ ...s, [key]: Math.min(np - 1, cp + 1) }))} disabled={cp >= np - 1}>›</button></div> : null; })()}
-                            {!shown.length ? <p className="gvv-empty">{cell.length ? "Nenhum com esse filtro" : "Ninguém ainda"}</p> : shown.slice(Math.min(cellPage[kind.k + c.k] || 0, Math.max(0, Math.ceil(shown.length / CELL_PER) - 1)) * CELL_PER).slice(0, CELL_PER).map((r) => {
+                            {!shown.length ? <p className="gvv-empty">{cell.length ? "Nenhum com esse filtro" : "Ninguém ainda"}</p> : (printing ? shown : shown.slice(Math.min(cellPage[kind.k + c.k] || 0, Math.max(0, Math.ceil(shown.length / CELL_PER) - 1)) * CELL_PER).slice(0, CELL_PER)).map((r) => {
                               return (
                                 <button key={r.id} className={`gvv-person ${(r.review_notes || "").trim() ? "warn" : ""}`} onClick={() => setOpen({ r, tag: tagOf[r.id], kind: kind.label, cat: c.label })}>
                                   <span className="gvv-tagno">{tagOf[r.id]}{tagOf["net:" + r.id] ? ` · ${tagOf["net:" + r.id]}` : ""}</span>
@@ -2305,6 +2345,7 @@
       const [page, setPage] = useState(0);
       const [q, setQ] = useState("");
       const [cat, setCat] = useState("");
+      const printing = useGvvPrinting();
       const mapEl = useRef(null), map = useRef(null), layer = useRef(null);
       const load = async () => { const { data } = await supabase.from("gvv_connections").select("*").order("created_at"); setConns(data || []); };
       useEffect(() => { load(); }, []);
@@ -2312,7 +2353,7 @@
       const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const items = (conns || []).map((c, i) => ({ c, n: i + 1, house: byId[c.host_candidate_id], leader: byId[c.leader_candidate_id] })).filter((x) => x.house && x.leader);
       const filtered = items.filter((x) => (!cat || gvvCatOf(x.house).k === cat) && (!q.trim() || norm([x.house.name, x.leader.name, tagOf[x.house.id], x.house.neighborhood].join(" ")).includes(norm(q.trim()))));
-      const PER = 8, pages = Math.max(1, Math.ceil(filtered.length / PER)), pg = Math.min(page, pages - 1);
+      const PER = printing ? 9999 : 8, pages = Math.max(1, Math.ceil(filtered.length / PER)), pg = Math.min(page, pages - 1);
       const shown = filtered.slice(pg * PER, pg * PER + PER);
       const sel = items.find((x) => x.c.id === selId) || shown[0] || null;
       const hp = sel && gvvPoint(sel.house), lp = sel && gvvPoint(sel.leader);
@@ -2366,7 +2407,7 @@
             })}
           </div>
           {pages > 1 && (
-            <div className="gvv-pager">
+            <div className="gvv-pager gvv-no-print">
               <button onClick={() => setPage(Math.max(0, pg - 1))} disabled={pg === 0}>‹</button>
               {Array.from({ length: pages }, (_, i) => <button key={i} onClick={() => setPage(i)} className={i === pg ? "on" : ""}>{i + 1}</button>)}
               <button onClick={() => setPage(Math.min(pages - 1, pg + 1))} disabled={pg >= pages - 1}>›</button>
@@ -2374,7 +2415,7 @@
             </div>
           )}
           {sel && (
-            <div className="gvv-conn-panel">
+            <div className="gvv-conn-panel gvv-no-print">
               <div className="gvv-conn-head">
                 <span className="gvv-tagno big">GVV {String(sel.n).padStart(2, "0")}</span>
                 <h3 className="font-serif text-[30px] leading-none mt-2">{gvvCatOf(sel.house).label}</h3>
@@ -2411,6 +2452,7 @@
       const [conns, setConns] = useState([]);
       const [closed, setClosed] = useState({});
       const [zoom, setZoom] = useState(0.8);
+      const printing = useGvvPrinting();
       const wrap = useRef(null), drag = useRef(null);
       const z = (v) => setZoom((cur) => Math.min(1.6, Math.max(0.3, +(typeof v === "function" ? v(cur) : v).toFixed(2))));
       const fit = () => { const w = wrap.current, inner = w?.firstChild; if (!w || !inner) return; const natural = inner.scrollWidth / zoom; z(Math.min(1, (w.clientWidth - 40) / natural)); };
@@ -2440,14 +2482,14 @@
           </div>
           </div>
           <div className="gvv-mm-wrap" ref={wrap} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}>
-            <div className="gvv-mm" style={{ zoom }}>
+            <div className="gvv-mm" style={{ zoom: printing ? 0.62 : zoom }}>
               <div className="mm-row">
                 <div className="mm-node root"><b>GVV</b><small>ADVEC Curitiba</small><em>{total.casas} casas · {total.conectadas} com líder · {total.livres} líderes livres</em></div>
                 <div className="mm-kids">
                   {GVV_ROSTER_CATS.map((c) => {
                     const hs = houses.filter((h) => gvvCatOf(h) === c);
                     const free = leaders.filter((l) => gvvCatOf(l) === c && !used.has(l.id));
-                    const isClosed = closed[c.k];
+                    const isClosed = !printing && closed[c.k];
                     return (
                       <div key={c.k} className="mm-branch">
                         <div className="mm-row">
@@ -2490,6 +2532,24 @@
       );
     };
 
+    /* Impressão: enquanto imprime, as telas mostram tudo (sem páginas). */
+    const useGvvPrinting = () => {
+      const [p, setP] = useState(false);
+      useEffect(() => {
+        const on = () => setP(true), off = () => setP(false);
+        window.addEventListener("beforeprint", on); window.addEventListener("afterprint", off); window.addEventListener("gvv-print", on);
+        return () => { window.removeEventListener("beforeprint", on); window.removeEventListener("afterprint", off); window.removeEventListener("gvv-print", on); };
+      }, []);
+      return p;
+    };
+    const gvvPrint = () => { window.dispatchEvent(new Event("gvv-print")); setTimeout(() => window.print(), 400); };
+    const GvvPrintHead = ({ title, sub }) => (
+      <div className="gvv-print-only gvv-print-head">
+        <div><b>GVV · ADVEC Curitiba</b><span>{title}</span></div>
+        <small>{sub ? sub + " · " : ""}Impresso em {fmtDate(todayISO())}</small>
+      </div>
+    );
+
     /* Seletor de casas: escolhe CASA 01, 02… e vê os líderes no raio. */
     const GvvHousePicker = ({ houses, leaders, tagOf }) => {
       const toast = useToast();
@@ -2503,7 +2563,8 @@
       const [page, setPage] = useState(0);
       const [kindF, setKindF] = useState("");
       const [assign, setAssign] = useState(false);
-      const PER = 8;
+      const printing = useGvvPrinting();
+      const PER = printing ? 9999 : 8;
       const mapEl = useRef(null), map = useRef(null), layer = useRef(null);
       const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const loadConns = async () => { const { data } = await supabase.from("gvv_connections").select("*"); setConns(data || []); };
@@ -2593,7 +2654,7 @@
             {!shownHouses.length && <p className="txt-muted text-sm">Nenhuma casa com esse filtro.</p>}
           </div>
           {pages > 1 && (
-            <div className="gvv-pager">
+            <div className="gvv-pager gvv-no-print">
               <button onClick={() => setPage(Math.max(0, pg - 1))} disabled={pg === 0} aria-label="Página anterior">‹</button>
               {Array.from({ length: pages }, (_, i) => <button key={i} onClick={() => setPage(i)} className={i === pg ? "on" : ""}>{i + 1}</button>)}
               <button onClick={() => setPage(Math.min(pages - 1, pg + 1))} disabled={pg >= pages - 1} aria-label="Próxima página">›</button>
@@ -2601,7 +2662,7 @@
             </div>
           )}
           {sel && (
-            <div className="gvv-house-panel">
+            <div className="gvv-house-panel gvv-no-print">
               <div className="gvv-house-info">
                 <span className="gvv-tagno big">{tagOf[sel.id]}</span>
                 <h3 className="font-serif text-[28px] mt-2 leading-none">{sel.name}</h3>
@@ -2815,6 +2876,7 @@
             <div><h2 className="font-serif text-[26px] leading-tight">Interessados</h2>
               <p className="txt-muted text-sm">Pessoas que pediram para fazer parte de um GVV pelo formulário público.</p></div>
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={gvvPrint}>🖨 Imprimir</Button>
               <Button variant="outline" size="sm" onClick={() => { navigator.clipboard?.writeText(share); toast.success("Link do formulário copiado."); }}>Copiar link do formulário</Button>
               <Button variant="outline" size="sm" onClick={() => { navigator.clipboard?.writeText(mapLink); toast.success("Link do mapa copiado."); }}>Copiar link do mapa</Button>
             </div>
