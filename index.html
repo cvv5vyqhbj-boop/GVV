@@ -886,6 +886,10 @@
     .gvv-role { font-size: 11px !important; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; color: var(--fg) !important; }
     .gvv-wa { display:inline-flex; align-items:center; gap: 6px; margin-top: auto; font-weight: 700; color: #34d399; }
     .gvv-house-map.conn { height: 100%; min-height: 260px; margin-top: 0; }
+    .gvv-link-big { margin-top: 6px; padding: 12px; border-radius: 12px; border: 1.5px dashed rgba(193,237,40,.5); }
+    .gvv-access-row { display:flex; flex-wrap: wrap; align-items:center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+    .gvv-access-row.pending { border-color: rgba(246,196,83,.45); }
+    .gvv-access-row b { font-size: 14.5px; } .gvv-access-row p { font-size: 12.5px; color: var(--muted); overflow:hidden; text-overflow: ellipsis; }
   </style>
 </head>
 <body>
@@ -974,7 +978,7 @@
       super_admin: "Administrador Geral", pastor: "Pastor", lider_projetos: "Líder de Projetos",
       midia: "Mídia/Comunicação",
       financeiro: "Financeiro", secretaria: "Secretaria", administrativo: "Administrativo",
-      lider: "Líder de departamento", membro: "Membro", coordenador: "Coordenador de GVVs",
+      lider: "Líder de departamento", membro: "Membro", coordenador: "Supervisor de GVVs",
     };
     /* Quem dirige o fluxo (avança etapas, aprova, edita depois de criado).
        Líder de DEPARTAMENTO não dirige — propõe e depois só responde no chat. */
@@ -998,6 +1002,7 @@
     Object.values(PERMISSIONS).forEach((modules) => modules.push("mapageral"));
     ["super_admin","pastor","secretaria","administrativo","coordenador","lider"].forEach((r) => PERMISSIONS[r]?.push("interessados"));
     ["super_admin","pastor","secretaria","administrativo","coordenador"].forEach((r) => PERMISSIONS[r]?.push("cadastros"));
+    PERMISSIONS.super_admin.push("acessos");
     const can = (role, mod) => (PERMISSIONS[role] || []).includes(mod);
     const isMember = (role) => role === "membro";
 
@@ -2110,7 +2115,8 @@
       const addr = (r) => r.kind === "leader" ? r.home_address : r.address;
       const catIdx = (r) => GVV_ROSTER_CATS.indexOf(gvvCatOf(r));
       const byCatName = (a, b) => catIdx(a) - catIdx(b) || a.name.localeCompare(b.name, "pt-BR");
-      const houses = all.filter((r) => r.kind !== "leader").sort(byCatName);
+      /* Casas: primeiro quem é só anfitrião (CASA 01…), depois líder+anfitrião. */
+      const houses = [...all.filter((r) => r.kind === "host").sort(byCatName), ...all.filter((r) => r.kind === "both").sort(byCatName)];
       const leadersOnly = all.filter((r) => r.kind === "leader").sort(byCatName);
       const tagOf = useMemo(() => {
         const m = {};
@@ -2208,7 +2214,7 @@
           </>}
           {mode === "conectados" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvConnectedView all={all} tagOf={tagOf} />)}
           {mode === "mapa" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvMindMap houses={houses} leaders={leadersOnly} all={all} tagOf={tagOf} />)}
-          {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses} leaders={all.filter((r) => r.kind !== "host")} tagOf={tagOf} />)}
+          {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses.filter((r) => r.kind === "host")} leaders={all.filter((r) => r.kind === "leader")} tagOf={tagOf} />)}
           {mode === "tabela" && <>
           <div className="flex flex-wrap gap-2">
             {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-cat ${cat === c.k ? "on" : ""}`}>{c.label}<b>{all.filter((r) => inCat(r, c)).length}</b></button>)}
@@ -2474,11 +2480,11 @@
       useEffect(() => { setPage(0); }, [cat, q]);
       const near = useMemo(() => {
         if (!sel || !selPt) return [];
-        return leaders.filter((l) => l.id !== sel.id && (withBoth || l.kind === "leader")).map((l) => {
+        return leaders.filter((l) => l.id !== sel.id && l.kind === "leader").map((l) => {
           const pt = gvvPoint(l); return pt ? { l, pt, km: gvvKm(selPt, pt) } : null;
         }).filter((x) => x && x.km <= radius).sort((a, b) => a.km - b.km);
       }, [selId, radius, withBoth, leaders]);
-      const noLoc = sel ? leaders.filter((l) => (withBoth || l.kind === "leader") && !gvvPoint(l)).length : 0;
+      const noLoc = sel ? leaders.filter((l) => l.kind === "leader" && !gvvPoint(l)).length : 0;
       useEffect(() => {
         if (!mapEl.current || !window.L) return;
         if (!map.current) {
@@ -2516,7 +2522,7 @@
       return (
         <div className="space-y-4">
           <div className="mm-card p-3 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
-            <Input label="Buscar casa (número, anfitrião ou bairro)" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ex.: 07 ou Boqueirão" />
+            <Input label="Buscar casa de anfitrião (número, nome ou bairro)" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ex.: 07 ou Boqueirão" />
             <div className="flex flex-wrap gap-2 pb-1">
               <button onClick={() => setCat("")} className={`gvv-chip ${!cat ? "on" : ""}`}>Todas · {houses.length}</button>
               {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-chip ${cat === c.k ? "on" : ""}`}>{c.label} · {houses.filter((h) => gvvCatOf(h) === c).length}</button>)}
@@ -2553,7 +2559,7 @@
               <div className="gvv-house-info">
                 <span className="gvv-tagno big">{tagOf[sel.id]}</span>
                 <h3 className="font-serif text-[28px] mt-2 leading-none">{sel.name}</h3>
-                <p className="txt-muted text-sm mt-1">{gvvCatOf(sel).label}{sel.kind === "both" ? " · anfitrião que também lidera" : " · só anfitrião"}</p>
+                <p className="txt-muted text-sm mt-1">{gvvCatOf(sel).label} · anfitrião (precisa de líder)</p>
                 <dl className="gvv-dl">
                   <dt>Endereço</dt><dd>{sel.address || "—"}</dd>
                   <dt>Dias · turno</dt><dd>{sel.availability || "—"}</dd>
@@ -2568,7 +2574,6 @@
                   <h4 className="font-serif text-[22px]">Líderes até {radius} km</h4>
                   <div className="flex flex-wrap items-center gap-2">
                     {[3, 5, 10].map((r) => <button key={r} onClick={() => setRadius(r)} className={`gvv-chip ${radius === r ? "on" : ""}`}>{r} km</button>)}
-                    <label className="flex items-center gap-1.5 text-[13px] font-semibold"><input type="checkbox" checked={withBoth} onChange={(e) => setWithBoth(e.target.checked)} /> incluir líder+anfitrião</label>
                   </div>
                 </div>
                 {!selPt ? <p className="gvv-conferir mt-3">Esta casa ainda não tem localização (CEP inválido ou ausente). Corrija o endereço para calcular distâncias.</p> : <>
@@ -2616,6 +2621,63 @@
               </div>
             </div>
           )}
+        </div>
+      );
+    };
+
+    /* ===================== ACESSOS (aprovar supervisores) ===================== */
+    const GVV_ACCESS_ROLES = [
+      { value: "coordenador", label: "Supervisor de GVVs" },
+      { value: "lider", label: "Líder de GVV" },
+      { value: "super_admin", label: "Administrador (ADM)" },
+    ];
+    const GvvAccessView = ({ profile, data }) => {
+      const toast = useToast();
+      const [busy, setBusy] = useState("");
+      const [pick, setPick] = useState({});
+      const list = [...(data.profiles || [])].sort((a, b) => (a.active === b.active ? a.name.localeCompare(b.name, "pt-BR") : a.active ? 1 : -1));
+      const pending = list.filter((p) => !p.active), active = list.filter((p) => p.active);
+      const save = async (p, change, msg) => {
+        setBusy(p.id);
+        const { error } = await supabase.from("profiles").update(change).eq("id", p.id);
+        setBusy("");
+        if (error) return toast.error(error.message || "Não foi possível salvar.");
+        toast.success(msg); data.reload?.();
+      };
+      const roleLabel = (r) => GVV_ACCESS_ROLES.find((x) => x.value === r)?.label || ROLE_LABEL[r] || r;
+      const Row = ({ p }) => (
+        <div className={`gvv-access-row ${p.active ? "" : "pending"}`}>
+          <Avatar name={p.name} size={40} />
+          <div className="min-w-0 flex-1"><b>{p.name}</b><p>{p.email}</p></div>
+          {p.active ? <>
+            <span className="gvv-badge ok">{roleLabel(p.role)}</span>
+            {p.id !== profile.id && <>
+              <select className={inputCls + " !w-auto"} value={p.role} onChange={(e) => save(p, { role: e.target.value }, "Papel atualizado.")} disabled={busy === p.id}>
+                {GVV_ACCESS_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {!GVV_ACCESS_ROLES.some((r) => r.value === p.role) && <option value={p.role}>{roleLabel(p.role)}</option>}
+              </select>
+              <Button variant="outline" size="sm" onClick={() => { if (confirm(`Bloquear o acesso de ${p.name}?`)) save(p, { active: false }, "Acesso bloqueado."); }} disabled={busy === p.id}>Bloquear</Button>
+            </>}
+          </> : <>
+            <select className={inputCls + " !w-auto"} value={pick[p.id] || "coordenador"} onChange={(e) => setPick((s) => ({ ...s, [p.id]: e.target.value }))}>
+              {GVV_ACCESS_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            <Button size="sm" onClick={() => save(p, { active: true, role: pick[p.id] || "coordenador" }, `${p.name.split(" ")[0]} liberado(a).`)} disabled={busy === p.id}>Aceitar</Button>
+          </>}
+        </div>
+      );
+      return (
+        <div className="space-y-5">
+          <div><h2 className="font-serif text-[26px] leading-tight">Acessos</h2>
+            <p className="txt-muted text-sm">Quem se cadastra como supervisor aparece aqui. Aceite e escolha o papel.</p></div>
+          <section className="mm-card overflow-hidden">
+            <header className="gvv-table-head"><i style={{ background: "#f6c453" }} /><h3>Aguardando aprovação</h3><span>{pending.length}</span></header>
+            {!pending.length ? <p className="p-4 text-sm txt-muted">Ninguém esperando.</p> : <div className="p-3 grid gap-2">{pending.map((p) => <Row key={p.id} p={p} />)}</div>}
+          </section>
+          <section className="mm-card overflow-hidden">
+            <header className="gvv-table-head"><i style={{ background: "var(--gvv-lime)" }} /><h3>Com acesso</h3><span>{active.length}</span></header>
+            <div className="p-3 grid gap-2">{active.map((p) => <Row key={p.id} p={p} />)}</div>
+          </section>
         </div>
       );
     };
@@ -2782,6 +2844,10 @@
 
     /* ===================== LOGIN ===================== */
     const LoginView = ({ kind = "supervisor" }) => {
+      const [signup, setSignup] = useState(false);
+      const [name, setName] = useState("");
+      const [password2, setPassword2] = useState("");
+      const [sent, setSent] = useState(false);
       const toast = useToast();
       const [email, setEmail] = useState("");
       const [password, setPassword] = useState("");
@@ -2792,6 +2858,15 @@
         e.preventDefault();
         setBusy(true);
         try {
+          if (signup) {
+            if (name.trim().split(/\s+/).length < 2) throw new Error("Escreva seu nome completo.");
+            if (password.length < 8) throw new Error("A senha precisa ter pelo menos 8 caracteres.");
+            if (password !== password2) throw new Error("As duas senhas não são iguais.");
+            const { data: res, error } = await supabase.auth.signUp({ email, password, options: { data: { name: name.trim() }, emailRedirectTo: location.origin + "/" } });
+            if (error) throw error;
+            if (!res.session) setSent(true);
+            return;
+          }
           if (recover) {
             const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: location.origin + "/" });
             if (error) throw error;
@@ -2802,7 +2877,11 @@
             if (error) throw error;
           }
         } catch (err) {
-          toast.error(err.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : (err.message || "Erro ao entrar."));
+          const m = err.message || "";
+          toast.error(m === "Invalid login credentials" ? "E-mail ou senha incorretos."
+            : /already registered/i.test(m) ? "Este e-mail já tem conta. Use Entrar ou Esqueci minha senha."
+            : /rate limit/i.test(m) ? "Muitas tentativas agora. Espere alguns minutos e tente de novo."
+            : m || "Erro ao entrar.");
         } finally { setBusy(false); }
       };
 
@@ -2812,13 +2891,24 @@
           <div className="gvv-login">
             <h1 className="gvv-display gvv-login-title">{kind === "adm" ? <>Login <span style={{ color: "var(--gvv-blue)" }}>ADM</span></> : <>Login <span style={{ color: "var(--gvv-lime)" }}>supervisor</span></>}</h1>
             <form onSubmit={submit} className="gvv-login-card space-y-4">
-              <p className="gvv-login-sub">{recover ? "Recuperar senha" : kind === "adm" ? "Administração da rede de GVVs" : "Supervisores e líderes de GVV"}</p>
+              {sent ? <>
+                <p className="gvv-login-sub">Cadastro enviado!</p>
+                <p className="text-sm" style={{ color: "rgba(249,244,235,.8)" }}>Confirme seu e-mail pelo link que enviamos. Depois, o administrador do GVV libera seu acesso.</p>
+                <button type="button" onClick={() => { setSent(false); setSignup(false); }} className="gvv-link">Voltar ao login</button>
+              </> : <>
+              <p className="gvv-login-sub">{signup ? "Criar conta de supervisor" : recover ? "Recuperar senha" : kind === "adm" ? "Administração da rede de GVVs" : "Supervisores e líderes de GVV"}</p>
+              {signup && <label className="gvv-field"><span className="gvv-tag lime">Nome completo</span>
+                <input className="gvv-input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required /></label>}
               <label className="gvv-field"><span className="gvv-tag blue">E-mail</span>
                 <input className="gvv-input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
               {!recover && <label className="gvv-field"><span className="gvv-tag lime">Senha</span>
-                <input className="gvv-input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>}
-              <button type="submit" className="gvv-submit gvv-display" disabled={busy}>{busy ? "Entrando…" : recover ? "Enviar link" : "Entrar"}</button>
-              <button type="button" onClick={() => setRecover(!recover)} className="gvv-link">{recover ? "Voltar ao login" : "Esqueci minha senha"}</button>
+                <input className="gvv-input" type="password" autoComplete={signup ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} required /></label>}
+              {signup && <label className="gvv-field"><span className="gvv-tag blue">Repita a senha</span>
+                <input className="gvv-input" type="password" autoComplete="new-password" value={password2} onChange={(e) => setPassword2(e.target.value)} required /></label>}
+              <button type="submit" className="gvv-submit gvv-display" disabled={busy}>{busy ? "Aguarde…" : signup ? "Criar conta" : recover ? "Enviar link" : "Entrar"}</button>
+              {!signup && <button type="button" onClick={() => setRecover(!recover)} className="gvv-link">{recover ? "Voltar ao login" : "Esqueci minha senha"}</button>}
+              {kind === "supervisor" && !recover && <button type="button" onClick={() => setSignup(!signup)} className="gvv-link gvv-link-big">{signup ? "Já tenho conta · Entrar" : "Não tem conta? Cadastre-se como supervisor"}</button>}
+              </>}
             </form>
           </div>
         </div>
@@ -11528,6 +11618,9 @@
       { section: "Meu espaço", items: [
         { key: "celula", label: "Meu GVV", icon: IHeart },
       ]},
+      { section: "Administração", items: [
+        { key: "acessos", label: "Acessos", icon: IUserPlus },
+      ]},
     ];
     /* Cor de identidade de cada módulo (ícone do menu + cabeçalho).
        Não carrega significado de status — status é sempre verde/âmbar/vermelho. */
@@ -11550,7 +11643,7 @@
     const modColor = (k) => MOD_COLOR[k] || "#2456a6";
     const PAGE_TITLES = {
       inicio: "Início", dashboard: "Visão geral", membros: "Membros", departamentos: "Departamentos",
-      lideranca: "Liderança", presenca: "Presença", escala: "Escala", cadastros: "Cadastros", celulas: "GVVs", mapageral: "Mapa · visão geral", interessados: "Interessados", kids: "Kids · Check-in", batismos: "Batismos",
+      lideranca: "Liderança", presenca: "Presença", escala: "Escala", acessos: "Acessos", cadastros: "Cadastros", celulas: "GVVs", mapageral: "Mapa · visão geral", interessados: "Interessados", kids: "Kids · Check-in", batismos: "Batismos",
       discipulado: "Discipulado", celula: "Meu GVV", meudepartamento: "Meu departamento",
       minhapresenca: "Minha presença", meusfilhos: "Meus filhos", meudiscipulado: "Meu discipulado",
       meusdados: "Meus dados", financas: "Finanças",
@@ -13669,6 +13762,7 @@
           case "celulas": return <CellsView profile={profile} data={data} />;
           case "interessados": return <GvvInterestsView data={data} />;
           case "cadastros": return <GvvRosterView />;
+          case "acessos": return <GvvAccessView profile={profile} data={data} />;
           case "kids": return <KidsView profile={profile} data={data} />;
           case "presenca": return <AttendanceView profile={profile} data={data} />;
           case "escala": return <EscalaView profile={profile} data={data} />;
@@ -13980,7 +14074,7 @@
         <div className="max-w-sm mm-slide-up">
           <div className="w-14 h-14 rounded-2xl bg-amber-400/15 border border-amber-400/25 flex items-center justify-center mx-auto mb-4"><ISettings className="w-7 h-7 text-amber-300" /></div>
           <h2 className="font-serif text-[21px] leading-tight text-zinc-50 mb-2">Conta aguardando liberação</h2>
-          <p className="text-zinc-400 text-sm mb-5">Olá, {profile.name}. Sua conta foi criada mas ainda não foi liberada. Peça ao pastor (administrador) para liberar seu acesso e definir seu papel.</p>
+          <p className="text-zinc-400 text-sm mb-5">Olá, {profile.name}. Sua conta foi criada mas ainda não foi liberada. O administrador do GVV vai conferir e liberar seu acesso. Esta tela muda sozinha quando for liberado.</p>
           <Button variant="outline" onClick={onLogout}>Sair</Button>
         </div>
       </div>
