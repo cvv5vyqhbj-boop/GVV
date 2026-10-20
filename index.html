@@ -784,7 +784,7 @@
     .gvv-pname { font-weight: 700; font-size: 14px; line-height: 1.25; }
     .gvv-pmeta { font-size: 12.5px; color: var(--muted); }
     .gvv-pwarn { position:absolute; top: 8px; right: 10px; color: #d69e2e; font-size: 14px; }
-    .gvv-modal { position: fixed; inset: 0; z-index: 80; background: var(--overlay); display:flex; align-items:center; justify-content:center; padding: 16px; }
+    .gvv-modal { position: fixed; inset: 0; z-index: 5000; background: var(--overlay); display:flex; align-items:center; justify-content:center; padding: 16px; }
     .gvv-modal-card { width: 100%; max-width: 520px; max-height: 90vh; overflow:auto; background: var(--surface); border:1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow-lg); }
     .gvv-dl { display:grid; grid-template-columns: 120px 1fr; gap: 8px 12px; margin-top: 16px; font-size: 14px; }
     .gvv-dl dt { color: var(--muted); font-weight: 600; } .gvv-dl dd { margin: 0; }
@@ -950,6 +950,8 @@
       .gvv-colhead.c-adolescentes, .gvv-colhead.c-juniores { border: 1px solid #999; }
       a { color: #000 !important; text-decoration: none !important; }
     }
+    /* Mapas ficam em camada própria: nunca passam por cima de janelas */
+    .gvv-house-map, .gvv-map, .gvv-mm-wrap { position: relative; isolation: isolate; z-index: 0; }
   </style>
 </head>
 <body>
