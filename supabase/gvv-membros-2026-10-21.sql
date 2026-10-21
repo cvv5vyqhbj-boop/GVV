@@ -35,9 +35,7 @@ DROP POLICY IF EXISTS gvv_connections_leader_read ON public.gvv_connections;
 CREATE POLICY gvv_connections_leader_read ON public.gvv_connections FOR SELECT TO authenticated
   USING (id IN (SELECT public.my_gvv_connections()));
 DROP POLICY IF EXISTS gvv_candidates_leader_read ON public.gvv_candidates;
-CREATE POLICY gvv_candidates_leader_read ON public.gvv_candidates FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM gvv_connections c WHERE c.id IN (SELECT public.my_gvv_connections())
-                 AND gvv_candidates.id IN (c.leader_candidate_id, c.vice_candidate_id, c.host_candidate_id)));
+-- (regra do líder sobre gvv_candidates fica em gvv-corrige-recursao-2026-10-21.sql)
 
 -- Vice-líder, dia e horário (equipe ou líder do GVV)
 CREATE OR REPLACE FUNCTION public.gvv_update_group(p_conn uuid, p_vice uuid, p_day text, p_time text) RETURNS void
@@ -130,17 +128,6 @@ CREATE POLICY gvv_reports_manage ON public.gvv_reports FOR ALL TO authenticated
   USING (public.gvv_can_manage(connection_id)) WITH CHECK (public.gvv_can_manage(connection_id));
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.gvv_reports TO authenticated;
 REVOKE ALL ON public.gvv_reports FROM anon;
-
--- 5) Quem é líder + anfitrião aprovado já forma um GVV (ele mesmo lidera na própria casa)
-WITH novos AS (
-  INSERT INTO public.gvv_connections(leader_candidate_id, host_candidate_id, notes)
-  SELECT c.id, c.id, 'Líder + anfitrião (ele mesmo lidera)'
-  FROM public.gvv_candidates c
-  WHERE c.kind = 'both' AND c.leader_status = 'approved' AND c.host_status = 'approved'
-    AND NOT EXISTS (SELECT 1 FROM public.gvv_connection_people p WHERE p.candidate_id = c.id)
-  RETURNING id, leader_candidate_id
-)
-INSERT INTO public.gvv_connection_people(candidate_id, connection_id) SELECT leader_candidate_id, id FROM novos;
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;
