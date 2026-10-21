@@ -923,6 +923,9 @@
       aside, header.sticky, .bottom-nav, .gvv-switch, .gvv-no-print, .gvv-zoom, .gvv-pager, .gvv-cellpager, .leaflet-control-container,
       button.gvv-chip, .mm-card:has(input), .gvv-search, [role="status"], .gvv-modal { display: none !important; }
       main, main > * { padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+      html, body, #root, #root > *, .h-screen, .min-h-screen, main, .flex-1 { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; position: static !important; }
+      .fixed:not(.gvv-modal), .sticky { position: static !important; }
+      .toast, [role="alert"].fixed { display: none !important; }
       .gvv-print-only { display: flex !important; }
       .gvv-print-head { justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #2B77E4; padding-bottom: 6px; margin-bottom: 10px; }
       .gvv-print-head b { font-family: var(--gvv-display); font-size: 22px; font-weight: 400; color: #2B77E4; margin-right: 10px; text-transform: uppercase; }
@@ -3322,7 +3325,12 @@
       }, []);
       return p;
     };
-    const gvvPrint = () => { window.dispatchEvent(new Event("gvv-print")); setTimeout(() => window.print(), 400); };
+    /* Abre a impressão no mesmo toque (Safari/iPhone bloqueia se esperar). Antes, força a tela a mostrar tudo. */
+    const gvvPrint = () => {
+      try { ReactDOM.flushSync(() => { window.dispatchEvent(new Event("gvv-print")); }); } catch (e) { window.dispatchEvent(new Event("gvv-print")); }
+      try { window.print(); }
+      catch (e) { alert("Este aparelho não abriu a impressão. No iPhone: toque em Compartilhar → Imprimir. No computador: Ctrl/Cmd + P."); }
+    };
     const GvvPrintHead = ({ title, sub }) => (
       <div className="gvv-print-only gvv-print-head">
         <div><b>GVV · ADVEC Curitiba</b><span>{title}</span></div>
