@@ -2788,7 +2788,8 @@
       const [adding, setAdding] = useState(null);
       const [reloadKey, setReloadKey] = useState(0);
       const [err, setErr] = useState("");
-      const [cat, setCat] = useState("misto");
+      const [cat, setCat] = useState("");
+      const [kindF, setKindF] = useState("");
       const [q, setQ] = useState("");
       const [onlyIssues, setOnlyIssues] = useState(false);
       const [mode, setMode] = useState(initialMode);
@@ -2817,7 +2818,7 @@
       const inCat = (r, c) => gvvCatOf(r) === c;
       const semCat = all.filter((r) => !GVV_ROSTER_CATS.some((c) => inCat(r, c)));
       const current = GVV_ROSTER_CATS.find((c) => c.k === cat);
-      const base = cat === "sem" ? semCat : all.filter((r) => inCat(r, current));
+      const base = cat === "sem" ? semCat : !cat ? all : all.filter((r) => inCat(r, current));
       const list = base.filter((r) => (!onlyIssues || (r.review_notes || "").trim()) &&
         (!q.trim() || norm([r.name, r.phone, r.neighborhood, r.city, r.address, r.home_address].join(" ")).includes(norm(q.trim()))));
       const addr = (r) => r.kind === "leader" ? r.home_address : r.address;
@@ -2835,13 +2836,14 @@
         leadersOnly.forEach((r, i) => { m[r.id] = `LÍDER ${String(i + 1).padStart(2, "0")}`; });
         return m;
       }, [rows]);
+      const boardCats = GVV_ROSTER_CATS.filter((c) => !cat || cat === "sem" || c.k === cat);
       const status = (r) => r.kind === "host" ? r.host_status : r.kind === "leader" ? r.leader_status : `${GVV_STATUS_LABEL[r.leader_status]} / ${GVV_STATUS_LABEL[r.host_status]}`;
       const exportCsv = () => {
         const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
         const head = ["Categoria", "Tipo", "Nome", "WhatsApp", "Idade", "Membro há", "Dias e turno", "Bairro", "Cidade", "Endereço", "Situação", "Conferir"];
-        const lines = list.map((r) => [current?.label || "Sem categoria", GVV_ROSTER_KINDS.find((k) => k.k === r.kind)?.label, r.name, r.phone, gvvAge(r.birth_date), r.member_since, r.availability, r.neighborhood, r.city, addr(r), GVV_STATUS_LABEL[status(r)] || status(r), r.review_notes].map(esc).join(";"));
+        const lines = list.filter((r) => !kindF || r.kind === kindF).map((r) => [gvvCatOf(r).label, GVV_ROSTER_KINDS.find((k) => k.k === r.kind)?.label, r.name, r.phone, gvvAge(r.birth_date), r.member_since, r.availability, r.neighborhood, r.city, addr(r), GVV_STATUS_LABEL[status(r)] || status(r), r.review_notes].map(esc).join(";"));
         const blob = new Blob(["﻿" + [head.map(esc).join(";"), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
-        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `gvv-${cat}-${todayISO()}.csv`; a.click();
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `gvv-${cat || "todas"}${kindF ? "-" + kindF : ""}-${todayISO()}.csv`; a.click();
       };
       return (
         <div className="space-y-5">
@@ -2879,7 +2881,14 @@
               <button onClick={() => { setMode("quadro"); setOnlyIssues(false); }}>Ver no quadro</button>
             </div>
           )}
-          <GvvPrintHead title={{ quadro: "Quadro de cadastros", casas: "Casas", conectados: "GVVs conectados", mapa: "Mapa mental", tabela: "Tabela de cadastros" }[mode]} sub={`${all.length} inscritos`} />
+          <GvvPrintHead title={{ quadro: "Quadro de cadastros", casas: "Casas", conectados: "GVVs conectados", mapa: "Mapa mental", tabela: "Tabela de cadastros" }[mode]} sub={(mode === "quadro" || mode === "tabela") ? [GVV_ROSTER_KINDS.find((k) => k.k === kindF)?.label || "Todos os tipos", cat === "sem" ? "Sem categoria" : current?.label || "Todas as redes", `${list.filter((r) => !kindF || r.kind === kindF).length} inscritos`].join(" · ") : `${all.length} inscritos`} />
+          {(mode === "quadro" || mode === "tabela") && <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-bold txt-muted gvv-no-print">TIPO</span>
+            {[{ k: "", label: "Todos" }, ...GVV_ROSTER_KINDS].map((k) => <button key={k.k} onClick={() => setKindF(k.k)} className={`gvv-cat gvv-no-print ${kindF === k.k ? "on" : ""}`}>{k.label}<b>{all.filter((r) => !k.k || r.kind === k.k).length}</b></button>)}
+            <span className="text-xs font-bold txt-muted ml-2 gvv-no-print">REDE</span>
+            {[{ k: "", label: "Todas" }, ...GVV_ROSTER_CATS].map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-cat gvv-no-print ${cat === c.k ? "on" : ""}`}>{c.label}<b>{c.k ? all.filter((r) => inCat(r, c)).length : all.length}</b></button>)}
+            {semCat.length > 0 && <button onClick={() => setCat("sem")} className={`gvv-cat gvv-no-print ${cat === "sem" ? "on" : ""}`}>Sem categoria<b>{semCat.length}</b></button>}
+          </div>}
           {mode === "quadro" && <>
             <div className="mm-card p-3 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
               <Input label="Buscar nome, telefone, bairro ou cidade" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -2889,13 +2898,13 @@
             {err && <p className="text-rose-300 text-sm" role="alert">{err}</p>}
             {rows === null ? <p role="status" className="txt-muted">Carregando…</p> : (
               <div className="gvv-board-wrap">
-                <div className="gvv-board" style={{ "--cols": GVV_ROSTER_CATS.length }}>
+                <div className="gvv-board" style={{ "--cols": boardCats.length }}>
                   <div className="gvv-corner" />
-                  {GVV_ROSTER_CATS.map((c) => <div key={c.k} className={`gvv-colhead c-${c.k}`}>{c.label}<b>{all.filter((r) => gvvCatOf(r) === c).length}</b></div>)}
-                  {GVV_ROSTER_KINDS.map((kind) => (
+                  {boardCats.map((c) => <div key={c.k} className={`gvv-colhead c-${c.k}`}>{c.label}<b>{all.filter((r) => gvvCatOf(r) === c).length}</b></div>)}
+                  {GVV_ROSTER_KINDS.filter((k) => !kindF || k.k === kindF).map((kind) => (
                     <React.Fragment key={kind.k}>
                       <div className={`gvv-rowhead k-${kind.k}`}><span>{kind.label}</span><b>{all.filter((r) => r.kind === kind.k).length}</b></div>
-                      {GVV_ROSTER_CATS.map((c) => {
+                      {boardCats.map((c) => {
                         const cell = all.filter((r) => r.kind === kind.k && gvvCatOf(r) === c).sort((a, b) => (a.house_no ?? 9999) - (b.house_no ?? 9999) || a.name.localeCompare(b.name, "pt-BR"));
                         const shown = cell.filter((r) => (!dayQ || gvvDaysOf(r.days || r.availability).includes(dayQ)) && (!onlyIssues || (r.review_notes || "").trim()) && (!q.trim() || norm([r.name, r.phone, r.neighborhood, r.city].join(" ")).includes(norm(q.trim()))));
                         return (
@@ -2959,16 +2968,12 @@
           {mode === "mapa" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvMindMap houses={houses} leaders={leadersOnly} all={all} tagOf={tagOf} />)}
           {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses.filter((r) => r.host_status === "approved")} leaders={all.filter((r) => r.kind === "leader" && r.leader_status === "approved")} tagOf={tagOf} />)}
           {mode === "tabela" && <>
-          <div className="flex flex-wrap gap-2">
-            {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-cat ${cat === c.k ? "on" : ""}`}>{c.label}<b>{all.filter((r) => inCat(r, c)).length}</b></button>)}
-            {semCat.length > 0 && <button onClick={() => setCat("sem")} className={`gvv-cat ${cat === "sem" ? "on" : ""}`}>Sem categoria<b>{semCat.length}</b></button>}
-          </div>
           <div className="mm-card p-4 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
             <Input label="Buscar nome, telefone, bairro ou cidade" value={q} onChange={(e) => setQ(e.target.value)} />
             <label className="flex items-center gap-2 text-sm font-semibold pb-2"><input type="checkbox" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} /> Só os que precisam conferir</label>
           </div>
           {err && <p className="text-rose-300 text-sm" role="alert">{err}</p>}
-          {rows === null ? <p role="status" className="txt-muted">Carregando…</p> : GVV_ROSTER_KINDS.map((kind) => {
+          {rows === null ? <p role="status" className="txt-muted">Carregando…</p> : GVV_ROSTER_KINDS.filter((k) => !kindF || k.k === kindF).map((kind) => {
             const part = list.filter((r) => r.kind === kind.k);
             return (
               <section key={kind.k} className="mm-card overflow-hidden">
