@@ -1033,6 +1033,27 @@
     .gvv-up { display:grid; gap: 4px; } .gvv-up li { display:flex; gap: 10px; font-size: 13.5px; } .gvv-up b { min-width: 44px; color: var(--gvv-blue); }
     .gvv-pincode { letter-spacing: .5em; font-size: 24px; text-align: center; }
     @media (max-width: 640px) { .gvv-cal-day { min-height: 58px; } .gvv-cal-ev { font-size: 9.5px; padding: 1px 4px; } }
+    /* Aba GVVs + cadastro manual */
+    .gvv-hub-head { padding: 22px; border-radius: 22px; background: radial-gradient(ellipse 60% 120% at 0% 100%, rgba(0,200,225,.22), transparent 70%), linear-gradient(160deg, #000, var(--surface) 80%); border: 1px solid var(--line); }
+    html[data-theme="light"] .gvv-hub-head { background: linear-gradient(160deg, #eaf2fd, var(--surface) 80%); }
+    .gvv-hub-kicker { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    .gvv-stats { display:grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .gvv-stat { padding: 14px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+    .gvv-stat b { display:block; font-family: var(--gvv-display); font-weight: 400; font-size: 38px; line-height: 1; }
+    .gvv-stat span { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+    .gvv-stat.blue { background: var(--gvv-blue); border-color: var(--gvv-blue); color: #fff; } .gvv-stat.blue span { color: rgba(255,255,255,.85); }
+    .gvv-stat.lime b { color: var(--gvv-lime); } html[data-theme="light"] .gvv-stat.lime b { color: #4d6200; }
+    .gvv-stat.warn { border-color: rgba(246,196,83,.5); } .gvv-stat.warn b { color: #f6c453; }
+    .gvv-addmenu { position: relative; }
+    .gvv-addlist { position: absolute; right: 0; top: calc(100% + 6px); z-index: 70; width: 260px; padding: 6px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-lg); display:grid; gap: 2px; }
+    .gvv-addlist button { text-align:left; padding: 10px 12px; border-radius: 10px; display:flex; flex-direction:column; }
+    .gvv-addlist button:hover { background: var(--accent-soft); } .gvv-addlist b { font-size: 14px; } .gvv-addlist small { font-size: 12px; color: var(--muted); }
+    .gvv-editor { max-width: 720px !important; }
+    .gvv-kindtabs { display:flex; flex-wrap:wrap; gap: 6px; margin-top: 14px; }
+    .gvv-kindtabs button { padding: 9px 16px; border-radius: 12px; font-weight: 800; font-size: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+    .gvv-kindtabs button.on { background: var(--gvv-lime); border-color: var(--gvv-lime); color: #000; }
+    .gvv-ed-h { font-family: var(--gvv-display); text-transform: uppercase; font-size: 18px; margin: 18px 0 8px; color: var(--gvv-blue); }
+    .gvv-resp { margin-top: 6px; display:inline-block; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 99px; background: rgba(193,237,40,.15); border: 1px solid rgba(193,237,40,.4); }
   </style>
 </head>
 <body>
@@ -2422,6 +2443,138 @@
       return <GvvPublicHome />;
     };
 
+    /* ===================== CADASTRO MANUAL (ADM) ===================== */
+    const GvvCandidateEditor = ({ kind: k0 = "leader", onClose, onSaved }) => {
+      const toast = useToast();
+      const [f, setF] = useState({ kind: k0, name: "", phone: "", email: "", birth: "", sex: "", marital: "", member: "", network: "misto",
+        cep: "", street: "", number: "", neighborhood: "", city: "Curitiba", reference: "", residence: "", fits: "Sim", days: [], shifts: ["Noite"], notes: "", approved: true });
+      const [busy, setBusy] = useState(false);
+      const [geo, setGeo] = useState(null);
+      const set = (key) => (v) => setF((s) => ({ ...s, [key]: v }));
+      const house = f.kind !== "leader";
+      const fillCep = async (raw) => {
+        const d = raw.replace(/\D/g, ""); if (d.length !== 8) return;
+        try {
+          const c = await fetch(`https://viacep.com.br/ws/${d}/json/`).then((r) => r.json());
+          if (!c.erro) setF((s) => ({ ...s, street: s.street || c.logradouro || "", neighborhood: c.bairro || s.neighborhood, city: c.localidade || s.city }));
+          const g = await fetch(`https://cep.awesomeapi.com.br/json/${d}`).then((r) => r.ok ? r.json() : null).catch(() => null);
+          if (g && g.lat) setGeo({ lat: +g.lat, lng: +g.lng });
+        } catch (e) {}
+      };
+      const save = async () => {
+        if (f.name.trim().split(/\s+/).length < 2) return toast.error("Escreva o nome completo.");
+        if (f.phone.replace(/\D/g, "").length < 10) return toast.error("WhatsApp com DDD.");
+        if (house && !(f.street.trim() && f.number.trim())) return toast.error("Informe rua e número da casa.");
+        setBusy(true);
+        const address = [[f.street, f.number].filter(Boolean).join(", "), f.neighborhood, f.city, f.cep && "CEP " + f.cep].filter(Boolean).join(", ");
+        const st = f.approved ? "approved" : "pending";
+        const row = {
+          name: f.name.trim(), kind: f.kind, network: f.network, audience: (GVV_ROSTER_CATS.find((c) => c.k === f.network) || {}).label || "",
+          leader_status: f.kind !== "host" ? st : "pending", host_status: f.kind !== "leader" ? st : "pending",
+          address: house ? address : "", home_address: house ? "" : address,
+          phone: f.phone, email: f.email.trim().toLowerCase(), birth_date: f.birth || null, sex: f.sex, marital_status: f.marital,
+          member_since: f.member, residence_type: house ? f.residence : "", fits_15: house ? f.fits === "Sim" : null, capacity: house && f.fits === "Sim" ? 15 : null,
+          days: house ? f.days.join(", ") : "", shifts: house ? f.shifts.join(", ") : "",
+          availability: house ? [f.days.join(", "), f.shifts.join(", ")].filter(Boolean).join(" · ") : "",
+          cep: f.cep, neighborhood: f.neighborhood, city: f.city, reference_point: f.reference, source_text: f.notes, review_notes: "",
+          origin_list: "Cadastro manual", approx_lat: geo?.lat ?? null, approx_lng: geo?.lng ?? null,
+        };
+        const { error } = await supabase.from("gvv_candidates").insert(row);
+        setBusy(false);
+        if (error) return toast.error(error.message);
+        toast.success(`${f.name.split(" ")[0]} cadastrado(a).`); onSaved?.(); onClose();
+      };
+      const lab = { leader: "Novo líder", host: "Novo anfitrião", both: "Novo líder + anfitrião" }[f.kind];
+      return ReactDOM.createPortal(
+        <div className="gvv-modal" onClick={onClose}>
+          <div className="gvv-modal-card gvv-editor" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={lab}>
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-serif text-[30px] leading-none">{lab}</h3>
+              <button onClick={onClose} className="p-2 rounded-lg hover-surface" aria-label="Fechar"><IX className="w-5 h-5" /></button>
+            </div>
+            <div className="gvv-kindtabs">
+              {[["leader", "Líder"], ["host", "Anfitrião"], ["both", "Líder + anfitrião"]].map(([k, l]) => <button key={k} className={f.kind === k ? "on" : ""} onClick={() => set("kind")(k)}>{l}</button>)}
+            </div>
+            <h4 className="gvv-ed-h">Dados da pessoa</h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2"><Input label="Nome completo" value={f.name} onChange={(e) => set("name")(e.target.value)} /></div>
+              <Input label="WhatsApp" value={f.phone} onChange={(e) => set("phone")(gvvPhoneMask(e.target.value))} placeholder="(41) 99999-9999" />
+              <Input label="E-mail" type="email" value={f.email} onChange={(e) => set("email")(e.target.value)} />
+              <Input label="Data de nascimento" type="date" value={f.birth} onChange={(e) => set("birth")(e.target.value)} />
+              <Select label="Sexo" value={f.sex} onChange={set("sex")} options={[{ value: "", label: "—" }, { value: "Masculino", label: "Masculino" }, { value: "Feminino", label: "Feminino" }]} />
+              <Select label="Estado civil" value={f.marital} onChange={set("marital")} options={[{ value: "", label: "—" }, ...["Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"].map((v) => ({ value: v, label: v }))]} />
+              <Select label="Membro da ADVEC há" value={f.member} onChange={set("member")} options={[{ value: "", label: "—" }, ...GVV_MEMBER_SINCE.map((v) => ({ value: v, label: v }))]} />
+              <Select label={f.kind === "host" ? "Rede (público que recebe)" : "Rede que vai liderar"} value={f.network} onChange={set("network")} options={GVV_ROSTER_CATS.map((c) => ({ value: c.k, label: c.label }))} />
+            </div>
+            <h4 className="gvv-ed-h">{house ? "Endereço da casa" : "Endereço do líder"}</h4>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Input label="CEP" value={f.cep} onChange={(e) => { const v = e.target.value.replace(/[^\d-]/g, "").slice(0, 9); set("cep")(v); fillCep(v); }} placeholder="Somente números" />
+              <div className="sm:col-span-2"><Input label="Rua" value={f.street} onChange={(e) => set("street")(e.target.value)} /></div>
+              <Input label="Número" value={f.number} onChange={(e) => set("number")(e.target.value)} />
+              <Input label="Bairro" value={f.neighborhood} onChange={(e) => set("neighborhood")(e.target.value)} />
+              <Input label="Cidade" value={f.city} onChange={(e) => set("city")(e.target.value)} />
+              {house && <div className="sm:col-span-3"><Input label="Ponto de referência" value={f.reference} onChange={(e) => set("reference")(e.target.value)} /></div>}
+            </div>
+            {house && <>
+              <h4 className="gvv-ed-h">Sobre a casa</h4>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Select label="Tipo de residência" value={f.residence} onChange={set("residence")} options={[{ value: "", label: "—" }, { value: "Casa", label: "Casa" }, { value: "Apartamento", label: "Apartamento" }]} />
+                <Select label="Acomoda até 15 pessoas?" value={f.fits} onChange={set("fits")} options={[{ value: "Sim", label: "Sim" }, { value: "Não", label: "Não" }]} />
+              </div>
+              <p className="text-sm font-semibold mt-3 mb-1">Dias disponíveis</p>
+              <div className="gvv-presence">{GVV_DAYS.map((d) => { const on = f.days.includes(d); return <button key={d} className={on ? "on" : ""} onClick={() => set("days")(on ? f.days.filter((x) => x !== d) : [...f.days, d])}>{d}</button>; })}</div>
+              <p className="text-sm font-semibold mt-3 mb-1">Turnos</p>
+              <div className="gvv-presence">{GVV_SHIFTS.map((d) => { const on = f.shifts.includes(d); return <button key={d} className={on ? "on" : ""} onClick={() => set("shifts")(on ? f.shifts.filter((x) => x !== d) : [...f.shifts, d])}>{d}</button>; })}</div>
+            </>}
+            <label className="block mt-4 text-sm font-semibold">Observações<textarea className={inputCls + " mt-1 min-h-[70px]"} value={f.notes} onChange={(e) => set("notes")(e.target.value)} /></label>
+            <label className="flex items-center gap-2 mt-3 text-sm font-semibold"><input type="checkbox" checked={f.approved} onChange={(e) => set("approved")(e.target.checked)} /> Já entra aprovado (aparece nas Casas para conectar)</label>
+            <div className="flex justify-end gap-2 mt-5">
+              <Button variant="outline" onClick={onClose}>Cancelar</Button>
+              <Button onClick={save} disabled={busy}><ICheck className="w-4 h-4" /> {busy ? "Salvando…" : "Salvar cadastro"}</Button>
+            </div>
+          </div>
+        </div>, document.body);
+    };
+
+    /* Aba GVVs: visão geral da rede no mesmo estilo de Cadastros. */
+    const GvvHubView = () => {
+      const [stats, setStats] = useState(null);
+      useEffect(() => { (async () => {
+        const [c, k, m, r] = await Promise.all([
+          supabase.from("gvv_connections").select("id,vice_candidate_id,start_date"),
+          supabase.from("gvv_candidates").select("id,kind,leader_status,host_status"),
+          supabase.from("gvv_members").select("id,status"),
+          supabase.from("gvv_reports").select("meeting_date,conversions,visitors"),
+        ]);
+        const cand = k.data || [], conns = c.data || [], ms = (m.data || []).filter((x) => x.status === "ativo"), rs = r.data || [];
+        const month = todayISO().slice(0, 7);
+        setStats({
+          gvvs: conns.length, semVice: conns.filter((x) => !x.vice_candidate_id).length,
+          casas: cand.filter((x) => x.kind !== "leader" && x.host_status === "approved").length,
+          lideres: cand.filter((x) => x.kind !== "host" && x.leader_status === "approved").length,
+          aguardando: cand.filter(gvvPending).length, membros: ms.length,
+          relMes: rs.filter((x) => (x.meeting_date || "").startsWith(month)).length,
+          jesus: rs.reduce((a, x) => a + (x.conversions || 0), 0),
+        });
+      })(); }, []);
+      const S = ({ n, l, tone }) => <div className={`gvv-stat ${tone || ""}`}><b>{n ?? "—"}</b><span>{l}</span></div>;
+      return (
+        <div className="space-y-5">
+          <div className="gvv-hub-head">
+            <div><p className="gvv-hub-kicker">ADVEC Curitiba</p><h2 className="font-serif text-[40px] leading-none">Rede <span style={{ color: "var(--gvv-blue)" }}>GVV</span></h2>
+              <p className="txt-muted mt-1">Acompanhe, cadastre e forme novos GVVs.</p></div>
+          </div>
+          <div className="gvv-stats">
+            <S n={stats?.gvvs} l="GVVs formados" tone="blue" /><S n={stats?.casas} l="casas aprovadas" /><S n={stats?.lideres} l="líderes aprovados" />
+            <S n={stats?.membros} l="membros ativos" /><S n={stats?.relMes} l="relatórios no mês" /><S n={stats?.jesus} l="aceitaram Jesus" tone="lime" />
+            {stats?.aguardando > 0 && <S n={stats.aguardando} l="inscrições aguardando" tone="warn" />}
+            {stats?.semVice > 0 && <S n={stats.semVice} l="GVVs sem vice" tone="warn" />}
+          </div>
+          <GvvRosterView initialMode="conectados" title="GVVs da rede" />
+        </div>
+      );
+    };
+
     /* ===================== CADASTROS (tabelas) =====================
        Inscritos separados por categoria e, dentro dela, por tipo:
        líder + anfitrião · só anfitrião · só líder. */
@@ -2458,13 +2611,15 @@
     ];
     const gvvAge = (d) => { if (!d) return ""; const b = new Date(d + "T12:00:00"), n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n < new Date(n.getFullYear(), b.getMonth(), b.getDate())) a--; return a > 0 && a < 120 ? a : ""; };
     const GVV_STATUS_LABEL = { pending: "Aguardando", approved: "Aprovado", rejected: "Recusado" };
-    const GvvRosterView = () => {
+    const GvvRosterView = ({ initialMode = "casas", title = "Cadastros" }) => {
       const [rows, setRows] = useState(null);
+      const [adding, setAdding] = useState(null);
+      const [reloadKey, setReloadKey] = useState(0);
       const [err, setErr] = useState("");
       const [cat, setCat] = useState("misto");
       const [q, setQ] = useState("");
       const [onlyIssues, setOnlyIssues] = useState(false);
-      const [mode, setMode] = useState("casas");
+      const [mode, setMode] = useState(initialMode);
       const toast = useToast();
       const decide = async (r, ok) => {
         const v = ok ? "approved" : "rejected", change = {};
@@ -2484,7 +2639,7 @@
         const { data, error } = await supabase.from("gvv_candidates").select("*").order("name");
         if (error) { setErr("Não foi possível carregar os cadastros. Se é a primeira vez, rode o SQL de importação."); setRows([]); return; }
         setRows(data || []);
-      })(); }, []);
+      })(); }, [reloadKey]);
       const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const all = rows || [];
       const inCat = (r, c) => gvvCatOf(r) === c;
@@ -2519,7 +2674,7 @@
       return (
         <div className="space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><h2 className="font-serif text-[26px] leading-tight">Cadastros</h2>
+            <div><h2 className="font-serif text-[26px] leading-tight">{title}</h2>
               <p className="txt-muted text-sm">{all.length} inscritos · casas numeradas, separados por categoria e por tipo.</p></div>
             <div className="flex flex-wrap gap-2">
               <div className="gvv-switch" role="tablist">
@@ -2530,9 +2685,21 @@
                 <button className={mode === "tabela" ? "on" : ""} onClick={() => setMode("tabela")}>Tabela</button>
               </div>
               {mode === "tabela" && <Button variant="outline" size="sm" onClick={exportCsv} disabled={!list.length}>Baixar planilha desta aba</Button>}
+              <div className="gvv-addmenu gvv-no-print">
+                <Button size="sm" onClick={() => setAdding((a) => a === "menu" ? null : "menu")}><IPlus className="w-4 h-4" /> Novo</Button>
+                {adding === "menu" && (
+                  <div className="gvv-addlist" onMouseLeave={() => setAdding(null)}>
+                    <button onClick={() => { setMode("casas"); setAdding(null); }}><b>Novo GVV</b><small>Escolher casa e conectar um líder</small></button>
+                    <button onClick={() => setAdding("leader")}><b>Novo líder</b><small>Cadastro manual</small></button>
+                    <button onClick={() => setAdding("host")}><b>Novo anfitrião</b><small>Casa que recebe o GVV</small></button>
+                    <button onClick={() => setAdding("both")}><b>Novo líder + anfitrião</b><small>Lidera na própria casa</small></button>
+                  </div>
+                )}
+              </div>
               <Button variant="outline" size="sm" className="gvv-no-print" onClick={gvvPrint}>🖨 Imprimir</Button>
             </div>
           </div>
+          {adding && adding !== "menu" && <GvvCandidateEditor kind={adding} onClose={() => setAdding(null)} onSaved={() => setReloadKey((k) => k + 1)} />}
           {all.filter(gvvPending).length > 0 && (
             <div className="gvv-pending-bar gvv-no-print">
               <b>{all.filter(gvvPending).length} nova(s) inscrição(ões) aguardando aprovação</b>
@@ -3049,6 +3216,7 @@
               <span className="gvv-tagno big">{house ? tagOf[house.id] : "GVV"}{house && tagOf["net:" + house.id] ? ` · ${tagOf["net:" + house.id]}` : ""}</span>
               <h2 className="font-serif text-[34px] leading-none mt-2">GVV {house ? house.name.split(" ")[0] : ""}{house?.neighborhood ? ` · ${house.neighborhood}` : ""}</h2>
               <p className="txt-muted mt-1">{[conn.meeting_day || (house?.availability || "").split(" · ")[0], conn.meeting_time].filter(Boolean).join(" · ") || "Dia e horário a definir"}</p>
+              {conn.notes && /^Respons/i.test(conn.notes) && <p className="gvv-resp">{conn.notes}</p>}
             </div>
             <div className="gvv-detail-stats">
               <div><b>{active.length}</b><span>membros ativos</span></div>
@@ -14721,7 +14889,7 @@
           case "departamentos": return <DepartmentsView data={data} />;
           case "lideranca": return <LeadershipView data={data} />;
           case "mapageral": return <CellsOverview />;
-          case "celulas": return <CellsView profile={profile} data={data} />;
+          case "celulas": return <GvvHubView />;
           case "interessados": return <GvvInterestsView data={data} />;
           case "cadastros": return <GvvRosterView />;
           case "acessos": return <GvvAccessView profile={profile} data={data} />;
