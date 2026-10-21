@@ -2543,27 +2543,28 @@
     };
 
     /* Aba GVVs: visão geral da rede no mesmo estilo de Cadastros. */
+    /* ID do GVV: rede + número na rede (ex.: JOVENS 03) e número da casa. */
+    const gvvIdOf = (h) => `${gvvCatOf(h || {}).short} ${String(h?.network_no ?? "?").padStart(2, "0")} · CASA ${String(h?.house_no ?? "?").padStart(2, "0")}`;
     const GvvHubView = () => {
       const [d, setD] = useState(null);
       const [open, setOpen] = useState("");
-      const [view, setView] = useState("lista");
       const [mapCells, setMapCells] = useState(null);
       useEffect(() => { (async () => {
         const [c, k, m, r] = await Promise.all([
           supabase.from("gvv_connections").select("*"),
-          supabase.from("gvv_candidates").select("id,name,kind,leader_status,host_status,house_no,network,neighborhood,phone"),
+          supabase.from("gvv_candidates").select("id,name,kind,leader_status,host_status,house_no,network,network_no,neighborhood,phone"),
           supabase.from("gvv_members").select("id,full_name,phone,status,connection_id,joined_at,kind"),
-          supabase.from("gvv_reports").select("connection_id,meeting_date,happened,present_ids,visitors,conversions"),
+          supabase.from("gvv_reports").select("*"),
         ]);
         setD({ conns: c.data || [], cands: k.data || [], members: m.data || [], reports: r.data || [] });
       })(); }, []);
-      useEffect(() => { if (view === "mapa" && !mapCells) supabase.rpc("gvv_map_overview").then(({ data }) => setMapCells((data || []).filter((x) => x.kind === "gvv"))); }, [view]);
+      useEffect(() => { supabase.rpc("gvv_map_overview").then(({ data }) => setMapCells((data || []).filter((x) => x.kind === "gvv"))); }, []);
       const S = ({ n, l, tone, k }) => <button type="button" onClick={() => k && setOpen(open === k ? "" : k)} aria-pressed={open === k}
         className={`gvv-stat ${tone || ""} text-left`} style={{ cursor: k ? "pointer" : "default", outline: open === k ? "2px solid var(--gvv-blue)" : "none" }}><b>{n ?? "—"}</b><span>{l}{k ? " ›" : ""}</span></button>;
       if (!d) return <div className="space-y-5"><p role="status">Carregando rede…</p></div>;
       const byId = Object.fromEntries(d.cands.map((x) => [x.id, x]));
       const today = todayISO(), ago = (n) => { const x = new Date(); x.setDate(x.getDate() - n); return x.toISOString().slice(0, 10); };
-      const tag = (conn) => { const h = byId[conn.host_candidate_id] || {}; return `CASA ${String(h.house_no ?? "").padStart(2, "0")} · ${(h.name || "").split(" ")[0]}`; };
+      const tag = (conn) => { const h = byId[conn.host_candidate_id] || {}; return `${gvvIdOf(h)} · ${(h.name || "").split(" ")[0]}`; };
       const connById = Object.fromEntries(d.conns.map((x) => [x.id, x]));
       const ativos = d.members.filter((x) => x.status === "ativo");
       const novos = d.conns.filter((x) => (x.start_date || (x.created_at || "").slice(0, 10)) >= ago(30));
@@ -2580,6 +2581,7 @@
         lideres: d.cands.filter((x) => x.kind !== "host" && x.leader_status === "approved").length,
         aguardando: d.cands.filter(gvvPending), relMes: d.reports.filter((x) => (x.meeting_date || "").startsWith(today.slice(0, 7))).length,
         jesus: d.reports.reduce((a, x) => a + (x.conversions || 0), 0),
+        batismo: d.reports.reduce((a, x) => a + (x.baptisms || 0), 0),
       };
       // Gráficos: encontros e visitantes por mês (6 meses) e GVVs por rede
       const months = Array.from({ length: 6 }, (_, i) => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - 5 + i); return x.toISOString().slice(0, 7); });
@@ -2592,6 +2594,8 @@
         enc: { t: "Encontros nos últimos 90 dias", rows: rep90.sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => [connById[x.connection_id] ? tag(connById[x.connection_id]) : "GVV", `${fmtDate(x.meeting_date)} · ${(x.present_ids || []).length} presentes · ${x.visitors || 0} visit.`]) },
         risco: { t: "Pessoas em risco (faltaram nos 2 últimos encontros)", rows: risco.map((mb) => [mb.full_name, `${connById[mb.connection_id] ? tag(connById[mb.connection_id]) : ""}${mb.phone ? " · " + mb.phone : ""}`]) },
         sem: { t: "GVVs sem encontro há 30 dias", rows: semEncontro.map((c) => [tag(c), (lastByConn[c.id] || [])[0] ? `último ${fmtDate(lastByConn[c.id][0].meeting_date)}` : "nenhum relatório"]) },
+        jesus: { t: "Aceitaram Jesus nos GVVs", rows: d.reports.filter((x) => x.conversions > 0).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => [connById[x.connection_id] ? tag(connById[x.connection_id]) : "GVV", `${fmtDate(x.meeting_date)} · ${x.conversions}${x.conversion_names ? " · " + x.conversion_names : ""}`]) },
+        batismo: { t: "Optaram pelo batismo nos GVVs", rows: d.reports.filter((x) => x.baptisms > 0).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => [connById[x.connection_id] ? tag(connById[x.connection_id]) : "GVV", `${fmtDate(x.meeting_date)} · ${x.baptisms}${x.baptism_names ? " · " + x.baptism_names : ""}`]) },
         vice: { t: "GVVs sem vice", rows: st.semVice.map((c) => [tag(c), byId[c.host_candidate_id]?.neighborhood || ""]) },
         agu: { t: "Inscrições aguardando", rows: st.aguardando.map((x) => [x.name, ({ leader: "líder", host: "anfitrião", both: "líder + anfitrião" })[x.kind] || ""]) },
       };
@@ -2606,7 +2610,7 @@
             <S n={st.gvvs} l="GVVs formados" tone="blue" /><S n={novos.length} l="GVVs novos (30 dias)" k="novos" />
             <S n={rep90.length} l="encontros em 90 dias" k="enc" /><S n={risco.length} l="pessoas em risco" tone={risco.length ? "warn" : ""} k="risco" />
             <S n={ativos.length} l="membros ativos" /><S n={st.casas} l="casas aprovadas" /><S n={st.lideres} l="líderes aprovados" />
-            <S n={st.relMes} l="relatórios no mês" /><S n={st.jesus} l="aceitaram Jesus" tone="lime" />
+            <S n={st.relMes} l="relatórios no mês" /><S n={st.jesus} l="aceitaram Jesus no GVV" tone="lime" k="jesus" /><S n={st.batismo} l="optaram pelo batismo no GVV" tone="lime" k="batismo" />
             <S n={semEncontro.length} l="sem encontro há 30 dias" tone={semEncontro.length ? "warn" : ""} k="sem" />
             {st.aguardando.length > 0 && <S n={st.aguardando.length} l="inscrições aguardando" tone="warn" k="agu" />}
             {st.semVice.length > 0 && <S n={st.semVice.length} l="GVVs sem vice" tone="warn" k="vice" />}
@@ -2632,12 +2636,8 @@
                 <Bar v={x.n} max={maxN} color="var(--gvv-blue)" /></div>)}</div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button type="button" className={`gvv-chip ${view === "lista" ? "on" : ""}`} onClick={() => setView("lista")}>Lista da rede</button>
-            <button type="button" className={`gvv-chip ${view === "mapa" ? "on" : ""}`} onClick={() => setView("mapa")}>Mapa da rede</button>
-          </div>
-          {view === "mapa" ? (mapCells ? <CellsMap overview items={mapCells.map((cell) => ({ cell, h: {} }))} /> : <p role="status">Carregando mapa…</p>)
-            : <GvvRosterView initialMode="conectados" title="GVVs da rede" />}
+          <h3 className="font-semibold">Mapa da rede</h3>
+          {mapCells ? <CellsMap overview items={mapCells.map((cell) => ({ cell, h: {} }))} /> : <p role="status">Carregando mapa…</p>}
         </div>
       );
     };
@@ -3232,7 +3232,7 @@
       const [time, setTime] = useState(conn.meeting_time || "");
       const [start, setStart] = useState(conn.start_date || "");
       const today = todayISO();
-      const [rep, setRep] = useState({ meeting_date: today, happened: true, present: [], visitors: 0, conversions: 0, conversion_names: "", prayer_requests: "", notes: "" });
+      const [rep, setRep] = useState({ meeting_date: today, happened: true, present: [], visitors: 0, conversions: 0, conversion_names: "", baptisms: 0, baptism_names: "", prayer_requests: "", notes: "" });
       const house = byId[conn.host_candidate_id], leader = byId[conn.leader_candidate_id], viceP = byId[conn.vice_candidate_id];
       const load = async () => {
         const [m, r, i] = await Promise.all([
@@ -3266,10 +3266,11 @@
         const { data: prof } = await supabase.auth.getUser();
         const me = (await supabase.from("profiles").select("id").eq("user_id", prof?.user?.id || "").maybeSingle()).data;
         const row = { connection_id: conn.id, meeting_date: rep.meeting_date, happened: rep.happened, present_ids: rep.happened ? rep.present : [], visitors: rep.happened ? +rep.visitors || 0 : 0,
-          conversions: rep.happened ? +rep.conversions || 0 : 0, conversion_names: rep.happened ? rep.conversion_names : "", prayer_requests: rep.prayer_requests, notes: rep.notes, created_by: me?.id || null };
+          conversions: rep.happened ? +rep.conversions || 0 : 0, conversion_names: rep.happened ? rep.conversion_names : "",
+          baptisms: rep.happened ? +rep.baptisms || 0 : 0, baptism_names: rep.happened ? rep.baptism_names : "", prayer_requests: rep.prayer_requests, notes: rep.notes, created_by: me?.id || null };
         const { error } = await supabase.from("gvv_reports").upsert(row, { onConflict: "connection_id,meeting_date" });
         if (error) return toast.error(error.message);
-        toast.success("Relatório salvo."); setRep({ meeting_date: today, happened: true, present: [], visitors: 0, conversions: 0, conversion_names: "", prayer_requests: "", notes: "" }); load();
+        toast.success("Relatório salvo."); setRep({ meeting_date: today, happened: true, present: [], visitors: 0, conversions: 0, conversion_names: "", baptisms: 0, baptism_names: "", prayer_requests: "", notes: "" }); load();
       };
       const pName = (r) => r ? r.name : "—";
       const wa = (phone, name) => phone ? <a href={waLink(phone, `Olá, ${(name || "").split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="gvv-wa"><IWhats className="w-4 h-4" /> {phone}</a> : <span className="txt-faint">—</span>;
@@ -3291,6 +3292,7 @@
               <div><b>{reports[0] ? fmtDate(reports[0].meeting_date) : "—"}</b><span>último encontro</span></div>
               <div><b>{(() => { const n = gvvMeetings({ ...conn, start_date: start || conn.start_date, meeting_day: day || conn.meeting_day }, house, today, "2099-12-31")[0]; return n ? fmtDate(n).slice(0, 5) : "—"; })()}</b><span>próximo encontro</span></div>
               <div><b>{reports.reduce((a, r) => a + (r.conversions || 0), 0)}</b><span>aceitaram Jesus</span></div>
+              <div><b>{reports.reduce((a, r) => a + (r.baptisms || 0), 0)}</b><span>optaram pelo batismo</span></div>
             </div>
           </div>
           <div className="gvv-people-row">
@@ -3365,6 +3367,8 @@
                     <Input label="Quantos aceitaram Jesus? 🙌" type="number" min="0" value={rep.conversions} onChange={(e) => setRep((s) => ({ ...s, conversions: e.target.value }))} />
                   </div>
                   {+rep.conversions > 0 && <Input label="Nome de quem aceitou Jesus (e telefone, se tiver)" value={rep.conversion_names} onChange={(e) => setRep((s) => ({ ...s, conversion_names: e.target.value }))} />}
+                  <Input label="Quantos optaram pelo batismo? 💧" type="number" min="0" value={rep.baptisms} onChange={(e) => setRep((s) => ({ ...s, baptisms: e.target.value }))} />
+                  {+rep.baptisms > 0 && <Input label="Nome de quem quer se batizar (e telefone, se tiver)" value={rep.baptism_names} onChange={(e) => setRep((s) => ({ ...s, baptism_names: e.target.value }))} />}
                 </>}
                 <label className="block mt-3 text-sm font-semibold">Como foi o encontro?
                   <textarea className={inputCls + " mt-1 min-h-[80px]"} placeholder="Palavra, louvor, comunhão, o que marcou…" value={rep.notes} onChange={(e) => setRep((s) => ({ ...s, notes: e.target.value }))} /></label>
@@ -3379,7 +3383,7 @@
                     {reports.map((r) => (
                       <li key={r.id}>
                         <div className="gvv-rep-date"><b>{fmtDate(r.meeting_date)}</b>{!r.happened && <span className="gvv-badge warn">Não aconteceu</span>}</div>
-                        {r.happened && <p className="gvv-rep-nums"><b>{(r.present_ids || []).length}</b> presentes · <b>{r.visitors}</b> visitantes · total <b>{(r.present_ids || []).length + r.visitors}</b>{r.conversions > 0 && <> · <b className="text-emerald-400">{r.conversions} aceitaram Jesus 🙌</b></>}</p>}
+                        {r.happened && <p className="gvv-rep-nums"><b>{(r.present_ids || []).length}</b> presentes · <b>{r.visitors}</b> visitantes · total <b>{(r.present_ids || []).length + r.visitors}</b>{r.conversions > 0 && <> · <b className="text-emerald-400">{r.conversions} aceitaram Jesus 🙌</b></>}{r.baptisms > 0 && <> · <b className="text-sky-400">{r.baptisms} querem batismo 💧</b></>}</p>}
                         {r.conversion_names && <p className="gvv-rep-names">Decisões: {r.conversion_names}</p>}
                         {r.prayer_requests && <p className="gvv-rep-notes">🙏 {r.prayer_requests}</p>}
                         {r.happened && <p className="gvv-rep-names">{(members || []).filter((m) => (r.present_ids || []).includes(m.id)).map((m) => m.full_name.split(" ")[0]).join(", ")}</p>}
@@ -7017,7 +7021,7 @@
     const gvvAdminPopup = (c) => {
       const wa = (p) => { const d = String(p || "").replace(/\D/g, ""); return d.length >= 10 ? `<a href="https://wa.me/${d.startsWith("55") ? d : "55" + d}" target="_blank" rel="noopener noreferrer">${escHtml(p)}</a>` : "—"; };
       const row = (l, v) => `<div style="display:flex;justify-content:space-between;gap:10px;margin-top:3px"><span style="color:var(--muted)">${l}</span><b style="text-align:right">${v}</b></div>`;
-      return `<div class="map-pop-head"><b>${escHtml(c.name)}</b><div style="font-size:12px;color:var(--muted)">GVV formado · ${escHtml(c.audience || "Misto")}</div></div>` +
+      return `<div class="map-pop-head"><div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--gvv-blue,#2B77E4)">ID ${escHtml(c.gvv_id || "—")}</div><b>${escHtml(c.name)}</b><div style="font-size:12px;color:var(--muted)">GVV formado · ${escHtml(c.audience || "Misto")}</div></div>` +
         `<div class="map-pop-body">` +
         `<p>${escHtml([c.address, c.neighborhood].filter(Boolean).join(" · ") || "Endereço não informado")}</p>` +
         row("Dia", escHtml([c.weekday, c.time].filter(Boolean).join(" · ") || "a definir")) +
@@ -7026,7 +7030,7 @@
         row("Líder", escHtml(c.leader_name || "—")) + row("Tel. líder", wa(c.leader_phone)) +
         row("Vice", escHtml(c.vice_name || "sem vice")) +
         row("Membros ativos", c.members ?? 0) + row("Encontros 90 dias", c.meetings_90 ?? 0) +
-        row("Visitantes 90 dias", c.visitors_90 ?? 0) + row("Último encontro", c.last_meeting ? escHtml(fmtDate(c.last_meeting)) : "nenhum") +
+        row("Visitantes 90 dias", c.visitors_90 ?? 0) + row("Aceitaram Jesus", c.conversions ?? 0) + row("Optaram pelo batismo", c.baptisms ?? 0) + row("Último encontro", c.last_meeting ? escHtml(fmtDate(c.last_meeting)) : "nenhum") +
         `<a class="map-pop-btn" style="display:block;text-align:center" href="${streetViewUrl(c.lat, c.lng)}" target="_blank" rel="noopener noreferrer">Street View ↗</a></div>`;
     };
 
