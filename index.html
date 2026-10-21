@@ -2814,7 +2814,8 @@
         setRows(data || []);
       })(); }, [reloadKey]);
       const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-      const all = rows || [];
+      const all = (rows || []).filter((r) => !r.archived_at);
+      const archived = (rows || []).filter((r) => r.archived_at);
       const inCat = (r, c) => gvvCatOf(r) === c;
       const semCat = all.filter((r) => !GVV_ROSTER_CATS.some((c) => inCat(r, c)));
       const current = GVV_ROSTER_CATS.find((c) => c.k === cat);
@@ -2966,7 +2967,7 @@
           </>}
           {mode === "conectados" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvConnectedView all={all} tagOf={tagOf} />)}
           {mode === "mapa" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvMindMap houses={houses} leaders={leadersOnly} all={all} tagOf={tagOf} />)}
-          {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses.filter((r) => r.host_status === "approved")} leaders={all.filter((r) => r.kind === "leader" && r.leader_status === "approved")} tagOf={tagOf} />)}
+          {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses.filter((r) => r.host_status === "approved")} leaders={all.filter((r) => r.kind === "leader" && r.leader_status === "approved")} archived={archived} tagOf={tagOf} onChanged={() => setReloadKey((k) => k + 1)} />)}
           {mode === "tabela" && <>
           <div className="mm-card p-4 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
             <Input label="Buscar nome, telefone, bairro ou cidade" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -3075,13 +3076,14 @@
             {shown.map((x) => {
               const c = gvvCatOf(x.house);
               return (
-                <button key={x.c.id} onClick={() => setSelId(x.c.id)} className={`gvv-house c-${c.k} ${sel?.c.id === x.c.id ? "on" : ""} done`}>
-                  <span className="gvv-house-top"><span className="gvv-house-no" data-k="GVV">{String(x.n).padStart(2, "0")}</span><span className={`gvv-cat-pill c-${c.k}`}>{c.label.split(" /")[0]}</span></span>
+                <div key={x.c.id} role="button" tabIndex={0} onClick={() => setSelId(x.c.id)} onKeyDown={(e) => e.key === "Enter" && setSelId(x.c.id)} style={{ cursor: "pointer" }} className={`gvv-house c-${c.k} ${sel?.c.id === x.c.id ? "on" : ""} done`}>
+                  <span className="gvv-house-top"><span className="gvv-house-no" data-k="CASA">{String(tagOf[x.house.id] || "").replace("CASA ", "")}</span><span className={`gvv-cat-pill c-${c.k}`}>{tagOf["net:" + x.house.id] || c.label.split(" /")[0]}</span></span>
                   <span className="gvv-conn-line"><small>Casa · anfitrião</small>{x.house.name}</span>
                   <span className="gvv-conn-line"><small>Líder</small>{x.leader.id === x.house.id ? "o próprio anfitrião" : x.leader.name}</span>
                   <span className="gvv-conn-line"><small>Vice</small>{x.vice ? x.vice.name : <i className="txt-faint">a definir</i>}</span>
-                  <span className="gvv-house-foot"><span className="gvv-badge">{tagOf[x.house.id]}</span>{x.house.neighborhood && <span className="gvv-badge">{x.house.neighborhood}</span>}</span>
-                </button>
+                  <span className="gvv-house-foot">{x.house.neighborhood && <span className="gvv-badge">{x.house.neighborhood}</span>}</span>
+                  <Button size="sm" className="mt-2 w-full gvv-no-print" onClick={(e) => { e.stopPropagation(); setDetail(x.c.id); }}>Ver detalhes</Button>
+                </div>
               );
             })}
           </div>
@@ -3096,7 +3098,7 @@
           {sel && (
             <div className="gvv-conn-panel gvv-no-print">
               <div className="gvv-conn-head">
-                <span className="gvv-tagno big">GVV {String(sel.n).padStart(2, "0")}</span>
+                <span className="gvv-tagno big">{tagOf[sel.house.id]}{tagOf["net:" + sel.house.id] ? ` · ${tagOf["net:" + sel.house.id]}` : ""}</span>
                 <h3 className="font-serif text-[30px] leading-none mt-2">{gvvCatOf(sel.house).label}</h3>
                 <p className="txt-muted text-sm mt-1">{(sel.house.availability || "Dia a combinar")}{hp && lp && sel.leader.id !== sel.house.id ? ` · líder mora a ${gvvFmtKm(gvvKm(hp, lp))}${hp.approx || lp.approx ? "*" : ""} da casa` : ""}</p>
               </div>
@@ -3367,7 +3369,12 @@
       };
       const setStatus = async (m, status) => { const { error } = await supabase.from("gvv_members").update({ status }).eq("id", m.id); if (error) return toast.error(error.message); load(); };
       const removeMember = async (m) => { if (!confirm(`Tirar ${m.full_name} deste GVV?`)) return; const { error } = await supabase.from("gvv_members").delete().eq("id", m.id); if (error) return toast.error(error.message); load(); };
+      const [leaderId, setLeaderId] = useState(conn.leader_candidate_id);
       const saveGroup = async () => {
+        if (!isLeaderView && leaderId && leaderId !== conn.leader_candidate_id) {
+          const { error: eL } = await supabase.rpc("gvv_set_leader", { p_conn: conn.id, p_leader: leaderId });
+          if (eL) return toast.error(eL.message);
+        }
         const { error } = await supabase.rpc("gvv_update_group", { p_conn: conn.id, p_vice: vice || null, p_day: day, p_time: time, p_start: start || null });
         if (error) return toast.error(error.message); toast.success("GVV atualizado."); onChanged?.();
       };
@@ -3518,9 +3525,14 @@
                 <Select label="Dia do encontro" value={day} onChange={setDay} options={[{ value: "", label: "A definir" }, ...["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"].map((d) => ({ value: d, label: d }))]} />
                 <Input label="Horário" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
                 <Input label="Data de início do GVV" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
-                {!isLeaderView && <Select label="Vice-líder" value={vice} onChange={setVice} options={[{ value: "", label: "— escolher —" }, ...freeLeaders.map((l) => ({ value: l.id, label: `${tagOf[l.id] ? tagOf[l.id] + " · " : ""}${l.name}` }))]} />}
               </div>
-              {!isLeaderView && <p className="text-xs txt-muted">No vice aparecem só líderes aprovados que ainda não estão em outro GVV.</p>}
+              {!isLeaderView && <div className="grid gap-4 md:grid-cols-2">
+                <GvvLeaderPick label="Líder" allowEmpty={false} value={leaderId} onChange={setLeaderId} origin={house ? gvvPoint(house) : null} tagOf={tagOf}
+                  options={[...(house && house.kind === "both" ? [house] : []), ...freeLeaders.filter((l) => l.id !== vice), ...(leader && leader.id !== house?.id ? [leader] : [])].filter((l, i, a) => a.findIndex((x) => x.id === l.id) === i)} />
+                <GvvLeaderPick label="Vice-líder" value={vice} onChange={setVice} origin={house ? gvvPoint(house) : null} tagOf={tagOf}
+                  options={freeLeaders.filter((l) => l.id !== leaderId)} />
+              </div>}
+              {!isLeaderView && <p className="text-xs txt-muted">Aparecem só líderes aprovados que ainda não estão em outro GVV, do mais perto ao mais longe da casa. Clique em Salvar dados para trocar.</p>}
               {(() => { const next = gvvMeetings({ ...conn, start_date: start, meeting_day: day }, house, today, "2099-12-31").slice(0, 6); return next.length
                 ? <div><p className="text-sm font-semibold mb-1">Próximos encontros (1º 15 dias após o início, depois a cada 2 semanas):</p><div className="flex flex-wrap gap-2">{next.map((d) => <span key={d} className="gvv-badge lead">{fmtDate(d)}</span>)}</div></div>
                 : <p className="text-sm txt-muted">Defina o dia e a data de início para gerar o calendário.</p>; })()}
@@ -3695,7 +3707,32 @@
     );
 
     /* Seletor de casas: escolhe CASA 01, 02… e vê os líderes no raio. */
-    const GvvHousePicker = ({ houses, leaders, tagOf }) => {
+    /* Escolher líder ou vice: busca pelo nome e ordena pela distância até a casa. */
+    const GvvLeaderPick = ({ label, options, value, onChange, origin, tagOf = {}, allowEmpty = true }) => {
+      const [q, setQ] = useState("");
+      const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const rows = options.map((l) => { const pt = origin ? gvvPoint(l) : null; return { l, km: pt ? gvvKm(origin, pt) : null, approx: pt?.approx }; })
+        .filter(({ l }) => !q.trim() || norm([l.name, tagOf[l.id], l.neighborhood].join(" ")).includes(norm(q.trim())))
+        .sort((a, b) => (a.km ?? 9999) - (b.km ?? 9999) || a.l.name.localeCompare(b.l.name, "pt-BR"));
+      const cur = options.find((l) => l.id === value);
+      return (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">{label}: <span className="txt-muted font-normal">{cur ? cur.name : "nenhum"}</span></p>
+          <input className="w-full text-sm px-3 py-2 rounded-lg" style={{ border: "1px solid var(--line)", background: "var(--surface)" }} placeholder="Buscar pelo nome…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <ul className="gvv-near-list" style={{ maxHeight: 220, overflow: "auto" }}>
+            {allowEmpty && <li><span className="gvv-km">—</span><div className="min-w-0"><b>Sem {label.toLowerCase()}</b></div><div className="ml-auto"><Button size="sm" variant={!value ? "solid" : "outline"} onClick={() => onChange("")}>{!value ? "✓" : "Escolher"}</Button></div></li>}
+            {rows.slice(0, 40).map(({ l, km, approx }) => (
+              <li key={l.id}>
+                <span className="gvv-km">{km != null ? gvvFmtKm(km) + (approx ? "*" : "") : "—"}</span>
+                <div className="min-w-0"><b>{tagOf[l.id] ? <span className="gvv-tagno mr-1">{tagOf[l.id]}</span> : null}{l.name}</b><p>{[gvvCatOf(l).label, l.neighborhood || l.city].filter(Boolean).join(" · ")}</p></div>
+                <div className="ml-auto"><Button size="sm" variant={value === l.id ? "solid" : "outline"} onClick={() => onChange(l.id)}>{value === l.id ? "✓" : "Escolher"}</Button></div>
+              </li>))}
+            {!rows.length && <li className="txt-muted text-sm">Ninguém com esse nome.</li>}
+          </ul>
+        </div>
+      );
+    };
+    const GvvHousePicker = ({ houses, leaders, archived = [], tagOf, onChanged }) => {
       const toast = useToast();
       const [cat, setCat] = useState("");
       const [q, setQ] = useState("");
@@ -3719,9 +3756,22 @@
       const filteredOk = (h) => (!cat || gvvCatOf(h).k === cat) && (!kindF || h.kind === kindF) && (!dayF || gvvDaysOf(h.days || h.availability).includes(dayF));
       const sel = (houses.find((h) => h.id === selId && filteredOk(h))) || null;
       const selPt = sel ? gvvPoint(sel) : null;
-      const isLeaders = kindF === "leader";
-      const src = isLeaders ? leaders.filter((l) => l.kind === "leader") : houses;
-      const filteredHouses = src.filter((h) => (!cat || gvvCatOf(h).k === cat) && (!kindF || h.kind === kindF) && (isLeaders || !dayF || gvvDaysOf(h.days || h.availability).includes(dayF)) && (!q.trim() || norm([tagOf[h.id], tagOf["net:" + h.id], h.name, h.neighborhood, h.city].join(" ")).includes(norm(q.trim()))));
+      const isArch = kindF === "archived";
+      const isLeaders = kindF === "leader" || isArch;
+      const src = isArch ? archived : kindF === "leader" ? leaders.filter((l) => l.kind === "leader") : houses;
+      const [leadSel, setLeadSel] = useState(null);
+      const [picked, setPicked] = useState([]);
+      useEffect(() => { setLeadSel(null); setPicked([]); }, [kindF]);
+      const archive = async (ids, on) => {
+        for (const id of ids) { const { error } = await supabase.rpc("gvv_archive_candidate", { p_id: id, p_archive: on }); if (error) return toast.error(error.message); }
+        toast.success(on ? `${ids.length} arquivado(s).` : `${ids.length} de volta à lista.`); setLeadSel(null); setPicked([]); onChanged?.();
+      };
+      const remove = async (ids) => {
+        if (!confirm(`Excluir ${ids.length} cadastro(s) de vez? Isso não pode ser desfeito.`)) return;
+        for (const id of ids) { const { error } = await supabase.rpc("gvv_delete_candidate", { p_id: id }); if (error) return toast.error(error.message); }
+        toast.success(`${ids.length} excluído(s).`); setLeadSel(null); setPicked([]); onChanged?.();
+      };
+      const filteredHouses = src.filter((h) => (!cat || gvvCatOf(h).k === cat) && (!kindF || isLeaders || h.kind === kindF) && (isLeaders || !dayF || gvvDaysOf(h.days || h.availability).includes(dayF)) && (!q.trim() || norm([tagOf[h.id], tagOf["net:" + h.id], h.name, h.neighborhood, h.city].join(" ")).includes(norm(q.trim()))));
       const pages = Math.max(1, Math.ceil(filteredHouses.length / PER));
       const pg = Math.min(page, pages - 1);
       const shownHouses = filteredHouses.slice(pg * PER, pg * PER + PER);
@@ -3759,13 +3809,20 @@
       }, [selId, radius, withBoth, near.length, conns, assign]);
       useEffect(() => () => { map.current?.remove(); map.current = null; }, []);
       const [ask, setAsk] = useState(null);
+      const [askVice, setAskVice] = useState("");
+      useEffect(() => { setAskVice(""); }, [ask]);
+      const [nameQ, setNameQ] = useState("");
+      const byName = nameQ.trim() ? leaders.filter((l) => l.kind === "leader" && l.id !== sel?.id && norm(l.name).includes(norm(nameQ.trim())))
+        .map((l) => { const pt = gvvPoint(l); return { l, pt: pt || {}, km: pt && selPt ? gvvKm(selPt, pt) : null }; }).sort((x, y) => (x.km ?? 9999) - (y.km ?? 9999)) : null;
       const connect = async (l) => {
+        const vice = askVice;
         setAsk(null);
         setBusy(l.id);
         try {
-          const { error } = await supabase.rpc("gvv_connect_candidates", { p_leader: l.id, p_host: sel.id, p_notes: `Conectado pelo seletor de casas (${radius} km)` });
+          const { data: connId, error } = await supabase.rpc("gvv_connect_candidates", { p_leader: l.id, p_host: sel.id, p_notes: `Conectado pelo seletor de casas (${radius} km)` });
           if (error) throw error;
-          toast.success("Conectados! Agora é só criar o GVV na aba GVVs.");
+          if (vice && connId) { const { error: e2 } = await supabase.rpc("gvv_update_group", { p_conn: connId, p_vice: vice, p_day: "", p_time: "", p_start: null }); if (e2) toast.error("GVV formado, mas o vice não entrou: " + e2.message); }
+          toast.success(vice ? "Conectados com vice-líder!" : "Conectados!");
           loadConns();
         } catch (e) { toast.error(e.message || "Não foi possível conectar."); }
         finally { setBusy(""); }
@@ -3777,19 +3834,23 @@
             <Input label="Buscar casa (número, nome ou bairro)" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ex.: 07, misto 03 ou Boqueirão" />
             <div className="flex flex-wrap gap-2 pb-1">
               {[["", "Todas"], ["host", "Só anfitrião"], ["both", "Líder + anfitrião"]].map(([k, l]) => <button key={k} onClick={() => setKindF(k)} className={`gvv-chip kind ${kindF === k ? "on" : ""}`}>{l} · {houses.filter((h) => !k || h.kind === k).length}</button>)}
-              <button onClick={() => setKindF("leader")} className={`gvv-chip kind ${isLeaders ? "on" : ""}`}>Só líderes · {leaders.filter((l) => l.kind === "leader").length}</button>
+              <button onClick={() => setKindF("leader")} className={`gvv-chip kind ${kindF === "leader" ? "on" : ""}`}>Só líderes · {leaders.filter((l) => l.kind === "leader").length}</button>
+              {archived.length > 0 && <button onClick={() => setKindF("archived")} className={`gvv-chip kind ${isArch ? "on" : ""}`}>Arquivados · {archived.length}</button>}
               <span className="w-px bg-[var(--line)] mx-1" />
               <button onClick={() => setCat("")} className={`gvv-chip ${!cat ? "on" : ""}`}>Todas as redes</button>
               {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-chip ${cat === c.k ? "on" : ""}`}>{c.label} · {src.filter((h) => gvvCatOf(h) === c).length}</button>)}
             </div>
           </div>
-          <GvvPrintHead title={isLeaders ? "Líderes" : "Casas"} sub={[{ "": "Todas", host: "Só anfitrião", both: "Líder + anfitrião", leader: "Só líderes" }[kindF], GVV_ROSTER_CATS.find((c) => c.k === cat)?.label || "Todas as redes", `${filteredHouses.length} ${isLeaders ? "líderes" : "casas"}`].join(" · ")} />
+          <GvvPrintHead title={isLeaders ? "Líderes" : "Casas"} sub={[{ "": "Todas", host: "Só anfitrião", both: "Líder + anfitrião", leader: "Só líderes", archived: "Arquivados" }[kindF], GVV_ROSTER_CATS.find((c) => c.k === cat)?.label || "Todas as redes", `${filteredHouses.length} ${isLeaders ? "líderes" : "casas"}`].join(" · ")} />
           {!isLeaders && <GvvDayFilter value={dayF} onChange={setDayF} counts={Object.fromEntries(GVV_WEEK.map(([k]) => [k, houses.filter((h) => gvvDaysOf(h.days || h.availability).includes(k)).length]))} />}
           <div className="gvv-houses">
             {shownHouses.map((h) => {
               const c = gvvCatOf(h), cn = connOf(h.id);
               if (isLeaders) return (
-                <div key={h.id} className={`gvv-house c-${c.k} ${cn ? "done" : ""}`}>
+                <div key={h.id} role="button" tabIndex={0} onClick={() => setLeadSel(leadSel === h.id ? null : h.id)} onKeyDown={(e) => e.key === "Enter" && setLeadSel(h.id)}
+                  className={`gvv-house c-${c.k} ${cn ? "done" : ""} ${leadSel === h.id ? "on" : ""}`} style={{ cursor: "pointer", position: "relative" }}>
+                  <input type="checkbox" className="gvv-no-print" aria-label={`Selecionar ${h.name}`} checked={picked.includes(h.id)} onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setPicked((p) => e.target.checked ? [...p, h.id] : p.filter((x) => x !== h.id))} style={{ position: "absolute", right: 12, bottom: 12, width: 18, height: 18 }} />
                   <span className="gvv-house-top"><span className="gvv-house-no" data-k="LÍDER">{String(tagOf[h.id] || "").replace("LÍDER ", "")}</span><span className={`gvv-cat-pill c-${c.k}`}>{c.label.toUpperCase()}</span></span>
                   <span className="gvv-house-name">{h.name}</span>
                   <span className="gvv-house-meta"><IPin className="w-3.5 h-3.5" /> {h.neighborhood || h.city || "sem bairro"}{h.phone ? ` · ${h.phone}` : ""}</span>
@@ -3811,6 +3872,33 @@
             })}
             {!shownHouses.length && <p className="txt-muted text-sm">{isLeaders ? "Nenhum líder com esse filtro." : "Nenhuma casa com esse filtro."}</p>}
           </div>
+          {isLeaders && picked.length > 0 && <div className="gvv-pending-bar gvv-no-print">
+            <b>{picked.length} selecionado(s)</b>
+            <button onClick={() => setPicked(filteredHouses.map((x) => x.id))}>Selecionar todos ({filteredHouses.length})</button>
+            {isArch ? <button onClick={() => archive(picked, false)}>Desarquivar</button> : <button onClick={() => archive(picked, true)}>Arquivar</button>}
+            <button onClick={() => remove(picked)}>Excluir</button>
+            <button onClick={() => setPicked([])}>Limpar</button>
+          </div>}
+          {isLeaders && (() => { const l = src.find((x) => x.id === leadSel); if (!l) return null; const cn = connOf(l.id);
+            return <div className="mm-card p-4 gvv-no-print space-y-3">
+              <div className="flex flex-wrap justify-between gap-3"><div><span className="gvv-tagno big">{tagOf[l.id] || "LÍDER"}</span>
+                <h3 className="font-serif text-[28px] mt-2 leading-none">{l.name}</h3>
+                <p className="txt-muted text-sm mt-1">{gvvCatOf(l).label} · {[l.neighborhood, l.city].filter(Boolean).join(" · ") || "sem bairro"}{l.archived_at ? ` · arquivado em ${fmtDate(l.archived_at.slice(0, 10))}` : ""}</p></div>
+                <button className="txt-muted text-sm" onClick={() => setLeadSel(null)}>Fechar ✕</button></div>
+              <dl className="gvv-dl">
+                <dt>WhatsApp</dt><dd>{l.phone ? <a href={waLink(l.phone, `Olá, ${l.name.split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold">{l.phone}</a> : "—"}</dd>
+                <dt>Endereço</dt><dd>{l.home_address || l.address || "—"}</dd>
+                <dt>Disponibilidade</dt><dd>{l.availability || "—"}</dd>
+                <dt>GVV</dt><dd>{cn ? `Lidera ${tagOf[cn.host_candidate_id] || "um GVV"}` : "Sem casa"}</dd>
+              </dl>
+              {(l.review_notes || "").trim() && <p className="gvv-conferir">⚠ {l.review_notes}</p>}
+              <div className="flex flex-wrap gap-2">
+                {l.archived_at ? <Button variant="outline" onClick={() => archive([l.id], false)}>Desarquivar</Button>
+                  : <Button variant="outline" onClick={() => archive([l.id], true)} disabled={!!cn} title={cn ? "Desconecte o GVV antes" : ""}>Arquivar</Button>}
+                <Button variant="outline" onClick={() => remove([l.id])} disabled={!!cn} title={cn ? "Desconecte o GVV antes" : ""}>Excluir</Button>
+                {cn && <span className="text-xs txt-muted self-center">Está num GVV formado: desconecte em Conectados para arquivar ou excluir.</span>}
+              </div>
+            </div>; })()}
           {pages > 1 && (
             <div className="gvv-pager gvv-no-print">
               <button onClick={() => setPage(Math.max(0, pg - 1))} disabled={pg === 0} aria-label="Página anterior">‹</button>
@@ -3856,13 +3944,14 @@
                 </div>
                 {!selPt ? <p className="gvv-conferir mt-3">Esta casa ainda não tem localização (CEP inválido ou ausente). Corrija o endereço para calcular distâncias.</p> : <>
                   <div ref={mapEl} className="gvv-house-map" />
-                  {!near.length ? <p className="txt-muted text-sm mt-3">Nenhum líder com localização até {radius} km. Tente aumentar o raio.</p> : (
+                  <input className="w-full text-sm px-3 py-2 rounded-lg mt-3" style={{ border: "1px solid var(--line)", background: "var(--surface)" }} placeholder="Ou buscar líder pelo nome (qualquer distância)…" value={nameQ} onChange={(e) => setNameQ(e.target.value)} />
+                  {!(byName || near).length ? <p className="txt-muted text-sm mt-3">{byName ? "Nenhum líder com esse nome." : `Nenhum líder com localização até ${radius} km. Tente aumentar o raio ou buscar pelo nome.`}</p> : (
                     <ul className="gvv-near-list">
-                      {near.map(({ l, pt, km }) => {
+                      {(byName || near).map(({ l, pt, km }) => {
                         const cn = connOf(l.id);
                         return (
                           <li key={l.id}>
-                            <span className="gvv-km">{gvvFmtKm(km)}{pt.approx ? "*" : ""}</span>
+                            <span className="gvv-km">{km != null ? gvvFmtKm(km) : "—"}{pt.approx ? "*" : ""}</span>
                             <div className="min-w-0">
                               <b>{tagOf[l.id] ? <span className="gvv-tagno mr-1">{tagOf[l.id]}</span> : null}{l.name}</b>
                               <p>{[gvvCatOf(l).label, l.kind === "both" ? "também é anfitrião" : null, l.neighborhood || l.city].filter(Boolean).join(" · ")}</p>
@@ -3889,10 +3978,12 @@
                 <p className="gvv-ask-kicker">Formar novo GVV</p>
                 <div className="gvv-ask-pair">
                   <div><span className="gvv-tagno big">{tagOf[sel.id]}</span><b>{sel.name}</b><small>{sel.neighborhood || sel.city}</small></div>
-                  <div className="gvv-ask-link"><span>{gvvFmtKm(ask.km)}</span></div>
+                  <div className="gvv-ask-link"><span>{ask.km != null ? gvvFmtKm(ask.km) : "—"}</span></div>
                   <div><span className="gvv-tagno big blue">{tagOf[ask.l.id] || "LÍDER"}</span><b>{ask.l.name}</b><small>{ask.l.neighborhood || ask.l.city}</small></div>
                 </div>
-                <p className="txt-muted text-sm mt-3">Cada pessoa fica em uma conexão só. Dá para desfazer depois na aba Conectados.</p>
+                <div className="mt-4"><GvvLeaderPick label="Vice-líder (opcional)" value={askVice} onChange={setAskVice} origin={selPt} tagOf={tagOf}
+                  options={leaders.filter((l) => l.kind === "leader" && l.id !== ask.l.id && l.id !== sel.id && !connOf(l.id))} /></div>
+                <p className="txt-muted text-sm mt-3">Cada pessoa fica em uma conexão só. Dá para trocar líder e vice depois em Conectados → Ver detalhes.</p>
                 <div className="flex justify-end gap-2 mt-4">
                   <Button variant="outline" onClick={() => setAsk(null)}>Cancelar</Button>
                   <Button onClick={() => connect(ask.l)}>Conectar</Button>
