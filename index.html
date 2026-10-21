@@ -2452,9 +2452,16 @@
     };
 
     /* ===================== CADASTRO MANUAL (ADM) ===================== */
-    const GvvCandidateEditor = ({ kind: k0 = "leader", onClose, onSaved }) => {
+    const GvvCandidateEditor = ({ kind: k0 = "leader", row: editRow = null, onClose, onSaved }) => {
       const toast = useToast();
-      const [f, setF] = useState({ kind: k0, name: "", phone: "", email: "", birth: "", sex: "", marital: "", member: "", network: "misto",
+      const splitList = (t) => String(t || "").split(/\s*,\s*/).filter(Boolean);
+      const [f, setF] = useState(() => editRow ? {
+        kind: editRow.kind, name: editRow.name || "", phone: editRow.phone || "", email: editRow.email || "", birth: editRow.birth_date || "", sex: editRow.sex || "",
+        marital: editRow.marital_status || "", member: editRow.member_since || "", network: editRow.network || gvvNetworkOf(editRow),
+        cep: editRow.cep || "", street: (editRow.kind === "leader" ? editRow.home_address : editRow.address) || "", number: "", neighborhood: editRow.neighborhood || "", city: editRow.city || "",
+        reference: editRow.reference_point || "", residence: editRow.residence_type || "", fits: editRow.fits_15 === false ? "Não" : "Sim",
+        days: splitList(editRow.days), shifts: splitList(editRow.shifts), notes: editRow.source_text || "",
+        approved: (editRow.kind !== "host" ? editRow.leader_status : editRow.host_status) === "approved" } : { kind: k0, name: "", phone: "", email: "", birth: "", sex: "", marital: "", member: "", network: "misto",
         cep: "", street: "", number: "", neighborhood: "", city: "Curitiba", reference: "", residence: "", fits: "Sim", days: [], shifts: ["Noite"], notes: "", approved: true });
       const [busy, setBusy] = useState(false);
       const [geo, setGeo] = useState(null);
@@ -2472,9 +2479,10 @@
       const save = async () => {
         if (f.name.trim().split(/\s+/).length < 2) return toast.error("Escreva o nome completo.");
         if (f.phone.replace(/\D/g, "").length < 10) return toast.error("WhatsApp com DDD.");
-        if (house && !(f.street.trim() && f.number.trim())) return toast.error("Informe rua e número da casa.");
+        if (house && !(f.street.trim() && (f.number.trim() || editRow))) return toast.error("Informe rua e número da casa.");
         setBusy(true);
-        const address = [[f.street, f.number].filter(Boolean).join(", "), f.neighborhood, f.city, f.cep && "CEP " + f.cep].filter(Boolean).join(", ");
+        // Na edição o endereço já vem completo no campo Rua; só remonta se o número foi preenchido.
+        const address = editRow && !f.number.trim() ? f.street.trim() : [[f.street, f.number].filter(Boolean).join(", "), f.neighborhood, f.city, f.cep && "CEP " + f.cep].filter(Boolean).join(", ");
         const st = f.approved ? "approved" : "pending";
         const row = {
           name: f.name.trim(), kind: f.kind, network: f.network, audience: (GVV_ROSTER_CATS.find((c) => c.k === f.network) || {}).label || "",
@@ -2487,12 +2495,21 @@
           cep: f.cep, neighborhood: f.neighborhood, city: f.city, reference_point: f.reference, source_text: f.notes, review_notes: "",
           origin_list: "Cadastro manual", approx_lat: geo?.lat ?? null, approx_lng: geo?.lng ?? null,
         };
-        const { error } = await supabase.from("gvv_candidates").insert(row);
+        let error;
+        if (editRow) {
+          delete row.origin_list; delete row.review_notes;
+          if (!geo) { delete row.approx_lat; delete row.approx_lng; }
+          if (editRow.kind === f.kind) { // não mexe na aprovação de quem já foi decidido, só se mudou a caixinha
+            const was = (editRow.kind !== "host" ? editRow.leader_status : editRow.host_status) === "approved";
+            if (was === f.approved) { delete row.leader_status; delete row.host_status; }
+          }
+          ({ error } = await supabase.from("gvv_candidates").update(row).eq("id", editRow.id));
+        } else ({ error } = await supabase.from("gvv_candidates").insert(row));
         setBusy(false);
         if (error) return toast.error(error.message);
-        toast.success(`${f.name.split(" ")[0]} cadastrado(a).`); onSaved?.(); onClose();
+        toast.success(`${f.name.split(" ")[0]} ${editRow ? "atualizado(a)" : "cadastrado(a)"}.`); onSaved?.(); onClose();
       };
-      const lab = { leader: "Novo líder", host: "Novo anfitrião", both: "Novo líder + anfitrião" }[f.kind];
+      const lab = editRow ? `Editar ${editRow.name.split(" ")[0]}` : { leader: "Novo líder", host: "Novo anfitrião", both: "Novo líder + anfitrião" }[f.kind];
       return ReactDOM.createPortal(
         <div className="gvv-modal" onClick={onClose}>
           <div className="gvv-modal-card gvv-editor" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={lab}>
@@ -2517,8 +2534,8 @@
             <h4 className="gvv-ed-h">{house ? "Endereço da casa" : "Endereço do líder"}</h4>
             <div className="grid gap-3 sm:grid-cols-3">
               <Input label="CEP" value={f.cep} onChange={(e) => { const v = e.target.value.replace(/[^\d-]/g, "").slice(0, 9); set("cep")(v); fillCep(v); }} placeholder="Somente números" />
-              <div className="sm:col-span-2"><Input label="Rua" value={f.street} onChange={(e) => set("street")(e.target.value)} /></div>
-              <Input label="Número" value={f.number} onChange={(e) => set("number")(e.target.value)} />
+              <div className="sm:col-span-2"><Input label={editRow ? "Endereço" : "Rua"} value={f.street} onChange={(e) => set("street")(e.target.value)} /></div>
+              <Input label={editRow ? "Número (só se mudar a rua)" : "Número"} value={f.number} onChange={(e) => set("number")(e.target.value)} />
               <Input label="Bairro" value={f.neighborhood} onChange={(e) => set("neighborhood")(e.target.value)} />
               <Input label="Cidade" value={f.city} onChange={(e) => set("city")(e.target.value)} />
               {house && <div className="sm:col-span-3"><Input label="Ponto de referência" value={f.reference} onChange={(e) => set("reference")(e.target.value)} /></div>}
@@ -2535,7 +2552,7 @@
               <div className="gvv-presence">{GVV_SHIFTS.map((d) => { const on = f.shifts.includes(d); return <button key={d} className={on ? "on" : ""} onClick={() => set("shifts")(on ? f.shifts.filter((x) => x !== d) : [...f.shifts, d])}>{d}</button>; })}</div>
             </>}
             <label className="block mt-4 text-sm font-semibold">Observações<textarea className={inputCls + " mt-1 min-h-[70px]"} value={f.notes} onChange={(e) => set("notes")(e.target.value)} /></label>
-            <label className="flex items-center gap-2 mt-3 text-sm font-semibold"><input type="checkbox" checked={f.approved} onChange={(e) => set("approved")(e.target.checked)} /> Já entra aprovado (aparece nas Casas para conectar)</label>
+            <label className="flex items-center gap-2 mt-3 text-sm font-semibold"><input type="checkbox" checked={f.approved} onChange={(e) => set("approved")(e.target.checked)} /> {editRow ? "Aprovado" : "Já entra aprovado"} (aparece nas Casas para conectar)</label>
             <div className="flex justify-end gap-2 mt-5">
               <Button variant="outline" onClick={onClose}>Cancelar</Button>
               <Button onClick={save} disabled={busy}><ICheck className="w-4 h-4" /> {busy ? "Salvando…" : "Salvar cadastro"}</Button>
@@ -2786,6 +2803,7 @@
     const GvvRosterView = ({ initialMode = "casas", title = "Cadastros" }) => {
       const [rows, setRows] = useState(null);
       const [adding, setAdding] = useState(null);
+      const [editing, setEditing] = useState(null);
       const [reloadKey, setReloadKey] = useState(0);
       const [err, setErr] = useState("");
       const [cat, setCat] = useState("");
@@ -2875,6 +2893,7 @@
             </div>
           </div>
           {adding && adding !== "menu" && <GvvCandidateEditor kind={adding} onClose={() => setAdding(null)} onSaved={() => setReloadKey((k) => k + 1)} />}
+          {editing && <GvvCandidateEditor row={editing} onClose={() => setEditing(null)} onSaved={() => setReloadKey((k) => k + 1)} />}
           {all.filter(gvvPending).length > 0 && (
             <div className="gvv-pending-bar gvv-no-print">
               <b>{all.filter(gvvPending).length} nova(s) inscrição(ões) aguardando aprovação</b>
@@ -2952,6 +2971,7 @@
                     {open.r.source_text && <><dt>Observação</dt><dd>{open.r.source_text}</dd></>}
                   </dl>
                   {(open.r.review_notes || "").trim() && <p className="gvv-conferir">⚠ {open.r.review_notes}</p>}
+                  <div className="flex justify-end mt-3"><Button variant="outline" onClick={() => { setEditing(open.r); setOpen(null); }}>✎ Editar cadastro</Button></div>
                   {gvvPending(open.r) && (
                     <div className="gvv-decide">
                       <p>Inscrição {open.r.origin_list === "Formulário do site" ? "recebida pelo site" : "aguardando"} · aprove para aparecer nas Casas e poder conectar.</p>
@@ -2965,7 +2985,7 @@
               </div>
             )}
           </>}
-          {mode === "conectados" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvConnectedView all={all} tagOf={tagOf} />)}
+          {mode === "conectados" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvConnectedView all={all} tagOf={tagOf} onReload={() => setReloadKey((k) => k + 1)} />)}
           {mode === "mapa" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvMindMap houses={houses} leaders={leadersOnly} all={all} tagOf={tagOf} />)}
           {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses.filter((r) => r.host_status === "approved")} leaders={all.filter((r) => r.kind === "leader" && r.leader_status === "approved")} archived={archived} tagOf={tagOf} onChanged={() => setReloadKey((k) => k + 1)} />)}
           {mode === "tabela" && <>
@@ -3010,7 +3030,7 @@
     };
 
     /* GVVs já conectados (casa + líder). */
-    const GvvConnectedView = ({ all, tagOf }) => {
+    const GvvConnectedView = ({ all, tagOf, onReload }) => {
       const toast = useToast();
       const [conns, setConns] = useState(null);
       const [selId, setSelId] = useState(null);
@@ -3060,7 +3080,7 @@
       if (conns === null) return <p role="status" className="txt-muted">Carregando…</p>;
       const usedIds = new Set((conns || []).flatMap((c) => [c.leader_candidate_id, c.host_candidate_id, c.vice_candidate_id]).filter(Boolean));
       const approvedLeaders = all.filter((r) => r.kind !== "host" && r.leader_status === "approved");
-      if (detail) { const cur = (conns || []).find((c) => c.id === detail); if (cur) return <GvvGroupDetail conn={cur} byId={byId} tagOf={tagOf} leaders={approvedLeaders} usedIds={usedIds} onBack={() => setDetail(null)} onChanged={load} />; }
+      if (detail) { const cur = (conns || []).find((c) => c.id === detail); if (cur) return <GvvGroupDetail conn={cur} byId={byId} tagOf={tagOf} leaders={approvedLeaders} usedIds={usedIds} onBack={() => setDetail(null)} onChanged={() => { load(); onReload?.(); }} />; }
       if (!items.length) return <div className="mm-card p-10 text-center"><p className="font-serif text-2xl">Nenhum GVV conectado ainda</p><p className="txt-muted mt-2">No modo <b>Casas</b>, escolha uma casa e clique em <b>Conectar</b> num líder próximo.</p></div>;
       return (
         <div className="space-y-4">
@@ -3370,6 +3390,20 @@
       const setStatus = async (m, status) => { const { error } = await supabase.from("gvv_members").update({ status }).eq("id", m.id); if (error) return toast.error(error.message); load(); };
       const removeMember = async (m) => { if (!confirm(`Tirar ${m.full_name} deste GVV?`)) return; const { error } = await supabase.from("gvv_members").delete().eq("id", m.id); if (error) return toast.error(error.message); load(); };
       const [leaderId, setLeaderId] = useState(conn.leader_candidate_id);
+      const [swap, setSwap] = useState(""), [swapTo, setSwapTo] = useState(""), [editP, setEditP] = useState(null);
+      useEffect(() => { setSwapTo(swap === "leader" ? conn.leader_candidate_id : swap === "vice" ? (conn.vice_candidate_id || "") : ""); }, [swap]);
+      const applySwap = async () => {
+        if (swap === "leader") {
+          const { error } = await supabase.rpc("gvv_set_leader", { p_conn: conn.id, p_leader: swapTo });
+          if (error) return toast.error(error.message);
+          setLeaderId(swapTo); toast.success("Líder trocado.");
+        } else {
+          const { error } = await supabase.rpc("gvv_update_group", { p_conn: conn.id, p_vice: swapTo || null, p_day: conn.meeting_day || "", p_time: conn.meeting_time || "", p_start: conn.start_date || null });
+          if (error) return toast.error(error.message);
+          setVice(swapTo); toast.success(swapTo ? "Vice salvo." : "Vice removido.");
+        }
+        setSwap(""); onChanged?.();
+      };
       const saveGroup = async () => {
         if (!isLeaderView && leaderId && leaderId !== conn.leader_candidate_id) {
           const { error: eL } = await supabase.rpc("gvv_set_leader", { p_conn: conn.id, p_leader: leaderId });
@@ -3418,10 +3452,25 @@
           </div>
           <div className="gvv-no-print"><GvvBaptismPanel connId={conn.id} /></div>
           <div className="gvv-people-row">
-            <div className="gvv-person-card house"><p className="gvv-role">Anfitrião · casa</p><b>{pName(house)}</b><p>{house?.address || "—"}</p>{wa(house?.phone, house?.name)}</div>
-            <div className="gvv-person-card leader"><p className="gvv-role">Líder</p><b>{leader?.id === house?.id ? `${pName(leader)} (o próprio anfitrião)` : pName(leader)}</b><p>{leader?.member_since ? `Membro ${leader.member_since.toLowerCase()}` : ""}</p>{wa(leader?.phone, leader?.name)}</div>
-            <div className={`gvv-person-card vice ${viceP ? "" : "empty"}`}><p className="gvv-role">Vice-líder</p><b>{viceP ? viceP.name : "Ainda não definido"}</b><p>{viceP ? (viceP.member_since ? `Membro ${viceP.member_since.toLowerCase()}` : "") : "Todo GVV precisa de um vice. Escolha na aba Dados."}</p>{viceP && wa(viceP.phone, viceP.name)}</div>
+            <div className="gvv-person-card house"><p className="gvv-role">Anfitrião · casa</p><b>{pName(house)}</b><p>{house?.address || "—"}</p>{wa(house?.phone, house?.name)}
+              {!isLeaderView && house && <div className="flex gap-2 mt-2 gvv-no-print"><Button size="sm" variant="outline" onClick={() => setEditP(house)}>✎ Editar</Button></div>}</div>
+            <div className="gvv-person-card leader"><p className="gvv-role">Líder</p><b>{leader?.id === house?.id ? `${pName(leader)} (o próprio anfitrião)` : pName(leader)}</b><p>{leader?.member_since ? `Membro ${leader.member_since.toLowerCase()}` : ""}</p>{wa(leader?.phone, leader?.name)}
+              {!isLeaderView && <div className="flex gap-2 mt-2 gvv-no-print"><Button size="sm" onClick={() => setSwap("leader")}>⇄ Trocar líder</Button>{leader && <Button size="sm" variant="outline" onClick={() => setEditP(leader)}>✎ Editar</Button>}</div>}</div>
+            <div className={`gvv-person-card vice ${viceP ? "" : "empty"}`}><p className="gvv-role">Vice-líder</p><b>{viceP ? viceP.name : "Ainda não definido"}</b><p>{viceP ? (viceP.member_since ? `Membro ${viceP.member_since.toLowerCase()}` : "") : "Todo GVV precisa de um vice."}</p>{viceP && wa(viceP.phone, viceP.name)}
+              {!isLeaderView && <div className="flex gap-2 mt-2 gvv-no-print"><Button size="sm" onClick={() => setSwap("vice")}>{viceP ? "⇄ Trocar vice" : "+ Adicionar vice"}</Button>{viceP && <Button size="sm" variant="outline" onClick={() => setEditP(viceP)}>✎ Editar</Button>}</div>}</div>
           </div>
+          {editP && <GvvCandidateEditor row={editP} onClose={() => setEditP(null)} onSaved={() => onChanged?.()} />}
+          {swap && ReactDOM.createPortal(
+            <div className="gvv-modal" onClick={() => setSwap("")}>
+              <div className="gvv-modal-card gvv-ask" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={swap === "leader" ? "Trocar líder" : "Vice-líder"}>
+                <p className="gvv-ask-kicker">{swap === "leader" ? "Trocar líder" : "Vice-líder"} · {house ? tagOf[house.id] : "GVV"}</p>
+                {swap === "leader"
+                  ? <GvvLeaderPick label="Líder" allowEmpty={false} value={swapTo} onChange={setSwapTo} origin={house ? gvvPoint(house) : null} tagOf={tagOf}
+                      options={[...(house && house.kind === "both" ? [house] : []), ...freeLeaders.filter((l) => l.id !== conn.vice_candidate_id), ...(leader ? [leader] : [])].filter((l, i, a) => a.findIndex((x) => x.id === l.id) === i)} />
+                  : <GvvLeaderPick label="Vice-líder" value={swapTo} onChange={setSwapTo} origin={house ? gvvPoint(house) : null} tagOf={tagOf} options={freeLeaders.filter((l) => l.id !== conn.leader_candidate_id)} />}
+                <div className="flex justify-end gap-2 mt-4"><Button variant="outline" onClick={() => setSwap("")}>Cancelar</Button><Button onClick={applySwap}>Salvar</Button></div>
+              </div>
+            </div>, document.body)}
           <div className="gvv-tabs gvv-no-print">
             {[["membros", `Membros · ${active.length}`], ["relatorios", `Relatórios · ${reports.length}`], ["dados", "Dados do GVV"]].map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}
             <button className="ml-auto" onClick={gvvPrint}>🖨 Imprimir</button>
@@ -3760,6 +3809,7 @@
       const isLeaders = kindF === "leader" || isArch;
       const src = isArch ? archived : kindF === "leader" ? leaders.filter((l) => l.kind === "leader") : houses;
       const [leadSel, setLeadSel] = useState(null);
+      const [editRow, setEditRow] = useState(null);
       const [picked, setPicked] = useState([]);
       useEffect(() => { setLeadSel(null); setPicked([]); }, [kindF]);
       const archive = async (ids, on) => {
@@ -3893,6 +3943,7 @@
               </dl>
               {(l.review_notes || "").trim() && <p className="gvv-conferir">⚠ {l.review_notes}</p>}
               <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => setEditRow(l)}>✎ Editar cadastro</Button>
                 {l.archived_at ? <Button variant="outline" onClick={() => archive([l.id], false)}>Desarquivar</Button>
                   : <Button variant="outline" onClick={() => archive([l.id], true)} disabled={!!cn} title={cn ? "Desconecte o GVV antes" : ""}>Arquivar</Button>}
                 <Button variant="outline" onClick={() => remove([l.id])} disabled={!!cn} title={cn ? "Desconecte o GVV antes" : ""}>Excluir</Button>
@@ -3921,6 +3972,7 @@
                   {selConn && <><dt>Conexão</dt><dd className="font-semibold">✓ com {nameOf(selConn.leader_candidate_id === sel.id ? selConn.host_candidate_id : selConn.leader_candidate_id) || "líder"}</dd></>}
                 </dl>
                 {(sel.review_notes || "").trim() && <p className="gvv-conferir">⚠ {sel.review_notes}</p>}
+                <Button variant="outline" size="sm" className="mt-3" onClick={() => setEditRow(sel)}>✎ Editar cadastro</Button>
               </div>
               {!needsLeader ? (
                 <div className="gvv-house-near gvv-self-led">
@@ -3972,6 +4024,7 @@
               )}
             </div>
           )}
+          {editRow && <GvvCandidateEditor row={editRow} onClose={() => setEditRow(null)} onSaved={() => onChanged?.()} />}
           {ask && sel && ReactDOM.createPortal(
             <div className="gvv-modal" onClick={() => setAsk(null)}>
               <div className="gvv-modal-card gvv-ask" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Confirmar conexão">
