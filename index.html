@@ -58,6 +58,7 @@
         if (t !== "dark" && t !== "light") t = "dark";
         document.documentElement.setAttribute("data-theme", t);
         if (t === "dark") document.querySelector('meta[name="theme-color"]').setAttribute("content", "#000000");
+        if (localStorage.getItem("advec_cores") === "1") document.documentElement.setAttribute("data-color", "on");
       } catch (e) {}
     })();
   </script>
@@ -263,6 +264,50 @@
     .church-pin svg { transform: rotate(45deg); }
     .leaflet-tooltip.church-map-label { color: #a9322d; font-size: 14px; font-weight: 700; background: #fffffff0; border: 0; border-radius: 6px; padding: 5px 8px; box-shadow: 0 2px 8px #25363515; }
     .leaflet-tooltip.church-map-label::before { display: none; }
+
+    /* ===== Modo colorido (html[data-color=on]) ===== */
+    html[data-color=on] { --net-misto:#10b981; --net-jovens:#3b82f6; --net-adolescentes:#a855f7; --net-juniores:#f59e0b; }
+    html[data-color=on] .gvv-house { border-top-width: 8px !important; }
+    html[data-color=on] .gvv-house.c-misto { border-top-color: var(--net-misto) !important; background: color-mix(in srgb, var(--net-misto) 12%, var(--surface)) !important; }
+    html[data-color=on] .gvv-house.c-jovens { border-top-color: var(--net-jovens) !important; background: color-mix(in srgb, var(--net-jovens) 12%, var(--surface)) !important; }
+    html[data-color=on] .gvv-house.c-adolescentes { border-top-color: var(--net-adolescentes) !important; background: color-mix(in srgb, var(--net-adolescentes) 12%, var(--surface)) !important; }
+    html[data-color=on] .gvv-house.c-juniores { border-top-color: var(--net-juniores) !important; background: color-mix(in srgb, var(--net-juniores) 12%, var(--surface)) !important; }
+    html[data-color=on] .gvv-house.c-misto::before { background: var(--net-misto) !important; }
+    html[data-color=on] .gvv-house.c-jovens::before { background: var(--net-jovens) !important; }
+    html[data-color=on] .gvv-house.c-adolescentes::before { background: var(--net-adolescentes) !important; }
+    html[data-color=on] .gvv-house.c-juniores::before { background: var(--net-juniores) !important; }
+    html[data-color=on] .gvv-cat-pill.c-misto, html[data-color=on] .net-misto, html[data-color=on] .gvv-colhead.c-misto { background: var(--net-misto) !important; color: #fff !important; }
+    html[data-color=on] .gvv-cat-pill.c-jovens, html[data-color=on] .net-jovens, html[data-color=on] .gvv-colhead.c-jovens { background: var(--net-jovens) !important; color: #fff !important; }
+    html[data-color=on] .gvv-cat-pill.c-adolescentes, html[data-color=on] .net-adolescentes, html[data-color=on] .gvv-colhead.c-adolescentes { background: var(--net-adolescentes) !important; color: #fff !important; }
+    html[data-color=on] .gvv-cat-pill.c-juniores, html[data-color=on] .net-juniores, html[data-color=on] .gvv-colhead.c-juniores { background: var(--net-juniores) !important; color: #111 !important; }
+    html[data-color=on] .gvv-chip.c-misto.on, html[data-color=on] .gvv-cat.c-misto.on { background: var(--net-misto) !important; border-color: var(--net-misto) !important; color: #fff !important; }
+    html[data-color=on] .gvv-chip.c-jovens.on, html[data-color=on] .gvv-cat.c-jovens.on { background: var(--net-jovens) !important; border-color: var(--net-jovens) !important; color: #fff !important; }
+    html[data-color=on] .gvv-chip.c-adolescentes.on, html[data-color=on] .gvv-cat.c-adolescentes.on { background: var(--net-adolescentes) !important; border-color: var(--net-adolescentes) !important; color: #fff !important; }
+    html[data-color=on] .gvv-chip.c-juniores.on, html[data-color=on] .gvv-cat.c-juniores.on { background: var(--net-juniores) !important; border-color: var(--net-juniores) !important; color: #111 !important; }
+    html[data-color=on] .gvv-chip.c-misto, html[data-color=on] .gvv-cat.c-misto { border-color: var(--net-misto) !important; }
+    html[data-color=on] .gvv-chip.c-jovens, html[data-color=on] .gvv-cat.c-jovens { border-color: var(--net-jovens) !important; }
+    html[data-color=on] .gvv-chip.c-adolescentes, html[data-color=on] .gvv-cat.c-adolescentes { border-color: var(--net-adolescentes) !important; }
+    html[data-color=on] .gvv-chip.c-juniores, html[data-color=on] .gvv-cat.c-juniores { border-color: var(--net-juniores) !important; }
+    /* situações */
+    html[data-color=on] .gvv-badge.ok { background: #16a34a !important; border-color: #16a34a !important; color: #fff !important; }
+    html[data-color=on] .gvv-badge.warn { background: #ea580c !important; border-color: #ea580c !important; color: #fff !important; }
+    html[data-color=on] .gvv-badge.lead { background: #2563eb !important; border-color: #2563eb !important; color: #fff !important; }
+    html[data-color=on] .gvv-badge.risk { background: #dc2626 !important; border-color: #dc2626 !important; color: #fff !important; }
+    html[data-color=on] .gvv-house:not(.done) .gvv-house-foot .gvv-badge:not(.ok):not(.warn):not(.lead) { background: #f97316 !important; color: #fff !important; border-color: #f97316 !important; }
+    html[data-color=on] .gvv-house.done { box-shadow: inset 0 0 0 2px #16a34a; }
+    html[data-color=on] .gvv-person-card.house { border-left: 6px solid #f59e0b !important; }
+    html[data-color=on] .gvv-person-card.leader { border-left: 6px solid #3b82f6 !important; }
+    html[data-color=on] .gvv-person-card.vice { border-left: 6px solid #a855f7 !important; }
+    html[data-color=on] .gvv-stat:nth-child(6n+1):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #3b82f6; }
+    html[data-color=on] .gvv-stat:nth-child(6n+2):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #10b981; }
+    html[data-color=on] .gvv-stat:nth-child(6n+3):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #a855f7; }
+    html[data-color=on] .gvv-stat:nth-child(6n+4):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #f59e0b; }
+    html[data-color=on] .gvv-stat:nth-child(6n+5):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #ec4899; }
+    html[data-color=on] .gvv-stat:nth-child(6n):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #06b6d4; }
+    html[data-color=on] .gvv-house-pin.n-misto { background: var(--net-misto); color: #fff; }
+    html[data-color=on] .gvv-house-pin.n-jovens { background: var(--net-jovens); color: #fff; }
+    html[data-color=on] .gvv-house-pin.n-adolescentes { background: var(--net-adolescentes); color: #fff; }
+    html[data-color=on] .gvv-house-pin.n-juniores { background: var(--net-juniores); color: #111; }
     .gvv-house-pin.on { transform: scale(1.25); box-shadow: 0 0 0 4px #c1ed2866, 0 3px 10px #0005; }
     .gvv-house-pin.approx { border-style: dashed !important; }
     .cell-map-frame { isolation: isolate; border-radius: 18px; }
@@ -2906,7 +2951,7 @@
             <span className="text-xs font-bold txt-muted gvv-no-print">TIPO</span>
             {[{ k: "", label: "Todos" }, ...GVV_ROSTER_KINDS].map((k) => <button key={k.k} onClick={() => setKindF(k.k)} className={`gvv-cat gvv-no-print ${kindF === k.k ? "on" : ""}`}>{k.label}<b>{all.filter((r) => !k.k || r.kind === k.k).length}</b></button>)}
             <span className="text-xs font-bold txt-muted ml-2 gvv-no-print">REDE</span>
-            {[{ k: "", label: "Todas" }, ...GVV_ROSTER_CATS].map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-cat gvv-no-print ${cat === c.k ? "on" : ""}`}>{c.label}<b>{c.k ? all.filter((r) => inCat(r, c)).length : all.length}</b></button>)}
+            {[{ k: "", label: "Todas" }, ...GVV_ROSTER_CATS].map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-cat gvv-no-print c-${c.k} ${cat === c.k ? "on" : ""}`}>{c.label}<b>{c.k ? all.filter((r) => inCat(r, c)).length : all.length}</b></button>)}
             {semCat.length > 0 && <button onClick={() => setCat("sem")} className={`gvv-cat gvv-no-print ${cat === "sem" ? "on" : ""}`}>Sem categoria<b>{semCat.length}</b></button>}
           </div>}
           {mode === "quadro" && <>
@@ -3088,7 +3133,7 @@
             <Input label="Buscar casa, anfitrião ou líder" value={q} onChange={(e) => setQ(e.target.value)} />
             <div className="flex flex-wrap gap-2 pb-1">
               <button onClick={() => setCat("")} className={`gvv-chip ${!cat ? "on" : ""}`}>Todos · {items.length}</button>
-              {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-chip ${cat === c.k ? "on" : ""}`}>{c.label} · {items.filter((x) => gvvCatOf(x.house) === c).length}</button>)}
+              {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-chip c-${c.k} ${cat === c.k ? "on" : ""}`}>{c.label} · {items.filter((x) => gvvCatOf(x.house) === c).length}</button>)}
             </div>
           </div>
           <GvvDayFilter value={dayF} onChange={setDayF} counts={Object.fromEntries(GVV_WEEK.map(([k]) => [k, items.filter((x) => dayOf(x).includes(k)).length]))} />
@@ -3212,7 +3257,7 @@
           <GvvPrintHead title={`Calendário · ${GVV_MONTHS[m]} ${y}`} />
           <div className="flex flex-wrap items-center gap-2 gvv-no-print">
             <button onClick={() => setNet("")} className={`gvv-chip ${!net ? "on" : ""}`}>Todas as redes</button>
-            {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setNet(c.k)} className={`gvv-chip ${net === c.k ? "on" : ""}`}>{c.label}</button>)}
+            {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setNet(c.k)} className={`gvv-chip c-${c.k} ${net === c.k ? "on" : ""}`}>{c.label}</button>)}
           </div>
           <div className="gvv-cal-wrap">
             <section className="gvv-cal">
@@ -3860,7 +3905,8 @@
       useEffect(() => () => { map.current?.remove(); map.current = null; }, []);
       const [ask, setAsk] = useState(null);
       const [askVice, setAskVice] = useState("");
-      useEffect(() => { setAskVice(""); }, [ask]);
+      const [askStep, setAskStep] = useState(1);
+      useEffect(() => { setAskVice(""); setAskStep(1); }, [ask]);
       const [nameQ, setNameQ] = useState("");
       const byName = nameQ.trim() ? leaders.filter((l) => l.kind === "leader" && l.id !== sel?.id && norm(l.name).includes(norm(nameQ.trim())))
         .map((l) => { const pt = gvvPoint(l); return { l, pt: pt || {}, km: pt && selPt ? gvvKm(selPt, pt) : null }; }).sort((x, y) => (x.km ?? 9999) - (y.km ?? 9999)) : null;
@@ -3869,7 +3915,7 @@
         setAsk(null);
         setBusy(l.id);
         try {
-          const { data: connId, error } = await supabase.rpc("gvv_connect_candidates", { p_leader: l.id, p_host: sel.id, p_notes: `Conectado pelo seletor de casas (${radius} km)` });
+          const { data: connId, error } = await supabase.rpc("gvv_connect_candidates", { p_leader: l.id, p_host: sel.id, p_notes: l.id === sel.id ? "Líder + anfitrião (ele mesmo lidera)" : `Conectado pelo seletor de casas (${radius} km)` });
           if (error) throw error;
           if (vice && connId) { const { error: e2 } = await supabase.rpc("gvv_update_group", { p_conn: connId, p_vice: vice, p_day: "", p_time: "", p_start: null }); if (e2) toast.error("GVV formado, mas o vice não entrou: " + e2.message); }
           toast.success(vice ? "Conectados com vice-líder!" : "Conectados!");
@@ -3888,7 +3934,7 @@
               {archived.length > 0 && <button onClick={() => setKindF("archived")} className={`gvv-chip kind ${isArch ? "on" : ""}`}>Arquivados · {archived.length}</button>}
               <span className="w-px bg-[var(--line)] mx-1" />
               <button onClick={() => setCat("")} className={`gvv-chip ${!cat ? "on" : ""}`}>Todas as redes</button>
-              {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-chip ${cat === c.k ? "on" : ""}`}>{c.label} · {src.filter((h) => gvvCatOf(h) === c).length}</button>)}
+              {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-chip c-${c.k} ${cat === c.k ? "on" : ""}`}>{c.label} · {src.filter((h) => gvvCatOf(h) === c).length}</button>)}
             </div>
           </div>
           <GvvPrintHead title={isLeaders ? "Líderes" : "Casas"} sub={[{ "": "Todas", host: "Só anfitrião", both: "Líder + anfitrião", leader: "Só líderes", archived: "Arquivados" }[kindF], GVV_ROSTER_CATS.find((c) => c.k === cat)?.label || "Todas as redes", `${filteredHouses.length} ${isLeaders ? "líderes" : "casas"}`].join(" · ")} />
@@ -3979,7 +4025,8 @@
                   <span className="gvv-tagno big">GVV pronto</span>
                   <h4 className="font-serif text-[30px] mt-3 leading-none">{sel.name.split(" ")[0]} lidera na própria casa</h4>
                   <p className="txt-muted mt-2">Quem é líder + anfitrião não precisa de outro líder. Esta casa já conta como GVV {tagOf[sel.id].replace("CASA ", "")} · {tagOf["net:" + sel.id]}.</p>
-                  {!selConn && <Button className="mt-3" variant="outline" onClick={async () => { const { error } = await supabase.rpc("gvv_connect_candidates", { p_leader: sel.id, p_host: sel.id, p_notes: "Líder + anfitrião (ele mesmo lidera)" }); if (error) return toast.error(error.message); toast.success("GVV formado! Veja em Conectados."); loadConns(); }}><ICheck className="w-4 h-4" /> Formar este GVV (ele mesmo lidera)</Button>}
+                  {!selConn && <Button className="mt-3" onClick={() => setAsk({ l: sel, km: 0 })}>Formar GVV e escolher vice →</Button>}
+                  {false && <Button className="mt-3" variant="outline" onClick={async () => { const { error } = await supabase.rpc("gvv_connect_candidates", { p_leader: sel.id, p_host: sel.id, p_notes: "Líder + anfitrião (ele mesmo lidera)" }); if (error) return toast.error(error.message); toast.success("GVV formado! Veja em Conectados."); loadConns(); }}><ICheck className="w-4 h-4" /> Formar este GVV (ele mesmo lidera)</Button>}
                   {!selConn && <>
                     <p className="txt-muted mt-4 text-sm">Esta pessoa ainda não está pronta para liderar? Ela fica só como anfitriã e você escolhe um líder.</p>
                     <Button className="mt-2" onClick={() => setAssign(true)}><IUserPlus className="w-4 h-4" /> Adicionar um líder a este GVV</Button>
@@ -4034,12 +4081,15 @@
                   <div className="gvv-ask-link"><span>{ask.km != null ? gvvFmtKm(ask.km) : "—"}</span></div>
                   <div><span className="gvv-tagno big blue">{tagOf[ask.l.id] || "LÍDER"}</span><b>{ask.l.name}</b><small>{ask.l.neighborhood || ask.l.city}</small></div>
                 </div>
-                <div className="mt-4"><GvvLeaderPick label="Vice-líder (opcional)" value={askVice} onChange={setAskVice} origin={selPt} tagOf={tagOf}
-                  options={leaders.filter((l) => l.kind === "leader" && l.id !== ask.l.id && l.id !== sel.id && !connOf(l.id))} /></div>
-                <p className="txt-muted text-sm mt-3">Cada pessoa fica em uma conexão só. Dá para trocar líder e vice depois em Conectados → Ver detalhes.</p>
+                <ol className="flex gap-2 mt-4 text-sm font-semibold"><li className={`gvv-chip ${askStep === 1 ? "on" : ""}`}>1 · Líder ✓</li><li className={`gvv-chip ${askStep === 2 ? "on" : ""}`}>2 · Vice-líder</li></ol>
+                {askStep === 2 && <div className="mt-3"><GvvLeaderPick label="Vice-líder" value={askVice} onChange={setAskVice} origin={selPt} tagOf={tagOf}
+                  options={leaders.filter((l) => l.kind === "leader" && l.id !== ask.l.id && l.id !== sel.id && !connOf(l.id))} /></div>}
+                <p className="txt-muted text-sm mt-3">{askStep === 1 ? "Próximo passo: escolher o vice-líder (pelo nome ou pelo mais perto)." : "Dá para trocar líder e vice depois em Conectados → Ver detalhes."}</p>
                 <div className="flex justify-end gap-2 mt-4">
-                  <Button variant="outline" onClick={() => setAsk(null)}>Cancelar</Button>
-                  <Button onClick={() => connect(ask.l)}>Conectar</Button>
+                  <Button variant="outline" onClick={() => askStep === 2 ? setAskStep(1) : setAsk(null)}>{askStep === 2 ? "← Voltar" : "Cancelar"}</Button>
+                  {askStep === 1 ? <Button onClick={() => setAskStep(2)}>Próximo: vice-líder →</Button> : <>
+                    {!askVice && <Button variant="outline" onClick={() => connect(ask.l)}>Conectar sem vice</Button>}
+                    <Button onClick={() => connect(ask.l)} disabled={!askVice}>✓ Conectar líder + vice</Button></>}
                 </div>
               </div>
             </div>, document.body
@@ -7257,7 +7307,7 @@
       `<div class="cpin${sel ? " sel" : ""}" style="--pin:${col}"><span class="h"></span><span class="t"></span><span class="b">${score}</span></div>`;
     const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     /* Pino limpo do GVV formado: só o número da casa; detalhes no clique. */
-    const gvvHousePinIcon = (n, on, approx) => window.L.divIcon({ className: "", html: `<div class="gvv-house-pin${on ? " on" : ""}${approx ? " approx" : ""}">${escHtml(n)}</div>`, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -18] });
+    const gvvHousePinIcon = (n, on, approx, net = "") => window.L.divIcon({ className: "", html: `<div class="gvv-house-pin n-${net}${on ? " on" : ""}${approx ? " approx" : ""}">${escHtml(n)}</div>`, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -18] });
     const pinIcon = (score, col, sel) => window.L.divIcon({ className: "", html: pinHtml(score, col, sel), iconSize: [40, 50], iconAnchor: [20, 46], popupAnchor: [0, -44] });
 
     const CELL_AUDIENCES = ["Mista", "Adultos", "Jovens", "Adolescentes", "Mulheres", "Idosos"];
@@ -7463,7 +7513,7 @@
           );
           m.on("click", () => setSel(cell.id));
           const house = overview && cell.kind === "gvv" ? ((cell.gvv_id || "").match(/CASA (\S+)/) || [])[1] || "?" : null;
-          const iconOf = house ? (on) => gvvHousePinIcon(house, on, cell.approx) : (on) => pinIcon(overview ? "•" : h.score, col, on);
+          const iconOf = house ? (on) => gvvHousePinIcon(house, on, cell.approx, cell.network || "misto") : (on) => pinIcon(overview ? "•" : h.score, col, on);
           if (house) m.setIcon(iconOf(String(cell.id) === String(sel)));
           markers.current[cell.id] = { m, col, score: overview ? "•" : h.score, iconOf };
           pts.push(ll);
@@ -15168,6 +15218,23 @@
 
     /* Claro / escuro. Salvo no aparelho; o script no <head> aplica antes de pintar.
        Avisa o resto do app (mapa e gráficos) pelo evento "advec-theme". */
+    /* Modo colorido: cada rede e cada situação com cor forte (pedido do pastor). Salvo no aparelho. */
+    const ColorToggle = ({ className = "" }) => {
+      const [on, setOn] = useState(() => document.documentElement.getAttribute("data-color") === "on");
+      const toggle = () => {
+        const next = !on;
+        if (next) document.documentElement.setAttribute("data-color", "on"); else document.documentElement.removeAttribute("data-color");
+        try { localStorage.setItem("advec_cores", next ? "1" : "0"); } catch (e) {}
+        setOn(next); window.dispatchEvent(new Event("advec-theme"));
+      };
+      return (
+        <button onClick={toggle} className={`p-2 rounded-lg hover-surface tap flex-shrink-0 ${on ? "" : "txt-soft"} ${className}`} aria-pressed={on}
+          title={on ? "Voltar às cores normais" : "Modo colorido: cada rede de uma cor"} aria-label="Modo colorido">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4-4-7.4-9-7.4Z"/>
+            <circle cx="7.5" cy="11" r="1.4" fill={on ? "#10b981" : "currentColor"} stroke="none"/><circle cx="10" cy="7" r="1.4" fill={on ? "#3b82f6" : "currentColor"} stroke="none"/><circle cx="14.5" cy="7" r="1.4" fill={on ? "#a855f7" : "currentColor"} stroke="none"/><circle cx="17" cy="11" r="1.4" fill={on ? "#f59e0b" : "currentColor"} stroke="none"/></svg>
+        </button>
+      );
+    };
     const ThemeToggle = ({ className = "" }) => {
       const [theme, setTheme] = useState(() => currentTheme());
       const toggle = () => {
@@ -15415,7 +15482,7 @@
                 <span className="text-[12px] font-semibold txt-faint px-1.5 py-0.5 rounded border" style={{ borderColor: "var(--line)", background: "var(--surface)" }}>⌘K</span>
               </button>
               <button onClick={() => setPaletteOpen(true)} title="Buscar" className="sm:hidden p-2 txt-soft tap flex-shrink-0"><ISearch className="w-5 h-5" /></button>
-              <ThemeToggle />
+              <ColorToggle /><ThemeToggle />
               <NotificationBell profile={profile} data={data} onGo={(k) => go(k)} />
               <NetworkBadge />
             </header>
