@@ -263,6 +263,8 @@
     .church-pin svg { transform: rotate(45deg); }
     .leaflet-tooltip.church-map-label { color: #a9322d; font-size: 14px; font-weight: 700; background: #fffffff0; border: 0; border-radius: 6px; padding: 5px 8px; box-shadow: 0 2px 8px #25363515; }
     .leaflet-tooltip.church-map-label::before { display: none; }
+    .leaflet-tooltip.gvv-id-label { background: #0b1a2e; color: #fff; border: 0; border-radius: 6px; padding: 3px 7px; font-size: 11.5px; font-weight: 800; letter-spacing: .04em; box-shadow: 0 2px 6px #0004; }
+    .leaflet-tooltip.gvv-id-label::before { display: none; }
     .cell-map-frame { isolation: isolate; border-radius: 18px; }
     .cell-map-frame .map-tool { background: rgba(255,255,255,.96); color: #354b50; border-color: #dfe7e5; box-shadow: 0 3px 14px #193d3212; }
     .cell-map-frame .map-tool .txt-soft, .cell-map-frame .map-tool .txt-muted { color: #53665f; }
@@ -2660,7 +2662,7 @@
         ]);
         setD({ conns: c.data || [], cands: k.data || [], members: m.data || [], reports: r.data || [] });
       })(); }, []);
-      useEffect(() => { supabase.rpc("gvv_map_overview").then(({ data }) => setMapCells((data || []).filter((x) => x.kind === "gvv"))); }, []);
+      useEffect(() => { supabase.rpc("gvv_map_overview").then(({ data }) => { const g = (data || []).filter((x) => x.kind === "gvv"); setMapCells(g); gvvFillGeo(g).then(setMapCells); }); }, []);
       const S = ({ n, l, tone, k }) => <button type="button" onClick={() => k && setOpen(open === k ? "" : k)} aria-pressed={open === k}
         className={`gvv-stat ${tone || ""} text-left`} style={{ cursor: k ? "pointer" : "default", outline: open === k ? "2px solid var(--gvv-blue)" : "none" }}><b>{n ?? "—"}</b><span>{l}{k ? " ›" : ""}</span></button>;
       if (!d) return <div className="space-y-5"><p role="status">Carregando rede…</p></div>;
@@ -7107,7 +7109,7 @@
         try {
           const { data, error } = await supabase.rpc("gvv_map_overview");
           if (error) throw error;
-          setCells(data || []);
+          setCells(data || []); gvvFillGeo(data || []).then(setCells);
         } catch (_) { setError("Não foi possível carregar o mapa geral. Verifique a conexão; se esta é a primeira utilização, a administração precisa aplicar o SQL do mapa geral."); }
         finally { setLoading(false); }
       };
@@ -7125,6 +7127,20 @@
     const GVV_AUDIENCE_COLORS={Juniores:'#c58a12',Jovens:'#3277b7',Adolescentes:'#8054be',Mista:'#159482',Adultos:'#d58a38',Mulheres:'#c64d86',Idosos:'#6978a4'};
     const gvvAudienceColor=audience=>GVV_AUDIENCE_COLORS[/^mist[oa]$/i.test(audience||'')?'Mista':audience]||'#788596';
 
+    /* GVV formado sem coordenada: localiza pelo endereço/bairro (só no mapa ADM) e guarda no aparelho. */
+    const gvvFillGeo = async (rows) => {
+      let cache = {}; try { cache = JSON.parse(localStorage.getItem("gvv_geo_cache") || "{}"); } catch (e) {}
+      const out = [];
+      for (const c of rows) {
+        if (c.kind !== "gvv" || (c.lat != null && c.lat !== "")) { out.push(c); continue; }
+        const q = [c.address, c.neighborhood].filter(Boolean).join(", ");
+        if (!q) { out.push(c); continue; }
+        if (!cache[q]) { try { const g = await gvvLocate(q); cache[q] = [g.lat, g.lng]; } catch (e) { cache[q] = null; } }
+        out.push(cache[q] ? { ...c, lat: cache[q][0], lng: cache[q][1], approx: true } : c);
+      }
+      try { localStorage.setItem("gvv_geo_cache", JSON.stringify(cache)); } catch (e) {}
+      return out;
+    };
     /* Popup do mapa ADM para GVV formado: tudo que a coordenação precisa. */
     const gvvAdminPopup = (c) => {
       const wa = (p) => { const d = String(p || "").replace(/\D/g, ""); return d.length >= 10 ? `<a href="https://wa.me/${d.startsWith("55") ? d : "55" + d}" target="_blank" rel="noopener noreferrer">${escHtml(p)}</a>` : "—"; };
@@ -7132,6 +7148,7 @@
       return `<div class="map-pop-head"><div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--gvv-blue,#2B77E4)">ID ${escHtml(c.gvv_id || "—")}</div><b>${escHtml(c.name)}</b><div style="font-size:12px;color:var(--muted)">GVV formado · ${escHtml(c.audience || "Misto")}</div></div>` +
         `<div class="map-pop-body">` +
         `<p>${escHtml([c.address, c.neighborhood].filter(Boolean).join(" · ") || "Endereço não informado")}</p>` +
+        (c.approx ? `<p style="font-size:11.5px;color:#b45309">Ponto aproximado pelo endereço. Confirme a localização no cadastro da casa.</p>` : "") +
         row("Dia", escHtml([c.weekday, c.time].filter(Boolean).join(" · ") || "a definir")) +
         row("Início", c.start_date ? escHtml(fmtDate(c.start_date)) : "—") +
         row("Anfitrião", escHtml(c.host_name || "—")) + row("Tel. casa", wa(c.host_phone)) +
@@ -7282,6 +7299,7 @@
             { closeButton: true, autoPanPadding: [40, 40] }
           );
           m.on("click", () => setSel(cell.id));
+          if (overview && cell.gvv_id) m.bindTooltip(escHtml(cell.gvv_id.split(" · ")[0]) + (cell.approx ? " ~" : ""), { permanent: true, direction: "right", offset: [14, -22], className: "gvv-id-label" });
           markers.current[cell.id] = { m, col, score: overview ? "•" : h.score };
           pts.push(ll);
         });
