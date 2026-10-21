@@ -2346,7 +2346,7 @@
         const txt = `Olá${c.leader_first ? ", " + c.leader_first : ""}! Encontrei o ${c.name} no site da ADVEC e quero participar. Pode me passar as informações?`;
         return `https://wa.me/${d.startsWith("55") ? d : "55" + d}?text=${encodeURIComponent(txt)}`; };
       const join = (c) => { try { sessionStorage.setItem("gvv_pref_cell", JSON.stringify({ id: c.id, name: c.name })); } catch (e) {} gvvNavigate("participar"); };
-      const audiences = CELL_AUDIENCES.filter((a) => cells.some((c) => c.audience === a));
+      const audiences = [...new Set(cells.map((c) => c.audience).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
       return (
         <div className="gvv-stage gvv-map-page">
