@@ -266,12 +266,25 @@
     .leaflet-tooltip.church-map-label::before { display: none; }
 
     /* ===== Modo colorido (html[data-color=on]) ===== */
-    html[data-color=on] { --net-misto:#10b981; --net-jovens:#3b82f6; --net-adolescentes:#a855f7; --net-juniores:#f59e0b; }
+    html[data-color=on] { --net-misto:#00b86b; --net-jovens:#1d6bff; --net-adolescentes:#a020f0; --net-juniores:#ff8a00; }
+    html[data-color=on] .gvv-house, html[data-color=on] .gvv-house .gvv-house-no, html[data-color=on] .gvv-house .gvv-house-name, html[data-color=on] .gvv-house .gvv-house-meta, html[data-color=on] .gvv-house .gvv-conn-line { color: #fff !important; }
+    html[data-color=on] .gvv-house .gvv-house-no::before, html[data-color=on] .gvv-house .gvv-conn-line small { color: rgba(255,255,255,.8) !important; }
+    html[data-color=on] .gvv-house .gvv-cat-pill { background: rgba(0,0,0,.35) !important; color: #fff !important; }
+    html[data-color=on] .gvv-house .gvv-badge { background: rgba(0,0,0,.35) !important; border-color: rgba(255,255,255,.5) !important; color: #fff !important; }
+    html[data-color=on] .gvv-house .gvv-badge.ok { background: #fff !important; color: #0a7a3d !important; }
+    html[data-color=on] .gvv-house .gvv-badge.lead { background: #fff !important; color: #1d4ed8 !important; }
+    html[data-color=on] .gvv-house:not(.done) { box-shadow: inset 0 0 0 3px #fff6; }
+    html[data-color=on] .gvv-house.done { box-shadow: inset 0 0 0 3px #fff, 0 0 0 2px #00e676 !important; }
+    html[data-color=on] .gvv-house.on { outline: 4px solid #fff !important; }
+    html[data-color=on] .gvv-person-card.house { background: linear-gradient(145deg,#ff8a00,#c25e00) !important; color:#fff !important; }
+    html[data-color=on] .gvv-person-card.leader { background: linear-gradient(145deg,#1d6bff,#0b3fa8) !important; color:#fff !important; }
+    html[data-color=on] .gvv-person-card.vice { background: linear-gradient(145deg,#a020f0,#6a0fa3) !important; color:#fff !important; }
+    html[data-color=on] .gvv-person-card p, html[data-color=on] .gvv-person-card .gvv-role { color: rgba(255,255,255,.85) !important; }
     html[data-color=on] .gvv-house { border-top-width: 8px !important; }
-    html[data-color=on] .gvv-house.c-misto { border-top-color: var(--net-misto) !important; background: color-mix(in srgb, var(--net-misto) 12%, var(--surface)) !important; }
-    html[data-color=on] .gvv-house.c-jovens { border-top-color: var(--net-jovens) !important; background: color-mix(in srgb, var(--net-jovens) 12%, var(--surface)) !important; }
-    html[data-color=on] .gvv-house.c-adolescentes { border-top-color: var(--net-adolescentes) !important; background: color-mix(in srgb, var(--net-adolescentes) 12%, var(--surface)) !important; }
-    html[data-color=on] .gvv-house.c-juniores { border-top-color: var(--net-juniores) !important; background: color-mix(in srgb, var(--net-juniores) 12%, var(--surface)) !important; }
+    html[data-color=on] .gvv-house.c-misto { border-color: var(--net-misto) !important; background: linear-gradient(145deg, var(--net-misto), color-mix(in srgb, var(--net-misto) 70%, #000)) !important; }
+    html[data-color=on] .gvv-house.c-jovens { border-color: var(--net-jovens) !important; background: linear-gradient(145deg, var(--net-jovens), color-mix(in srgb, var(--net-jovens) 70%, #000)) !important; }
+    html[data-color=on] .gvv-house.c-adolescentes { border-color: var(--net-adolescentes) !important; background: linear-gradient(145deg, var(--net-adolescentes), color-mix(in srgb, var(--net-adolescentes) 70%, #000)) !important; }
+    html[data-color=on] .gvv-house.c-juniores { border-color: var(--net-juniores) !important; background: linear-gradient(145deg, var(--net-juniores), color-mix(in srgb, var(--net-juniores) 70%, #000)) !important; }
     html[data-color=on] .gvv-house.c-misto::before { background: var(--net-misto) !important; }
     html[data-color=on] .gvv-house.c-jovens::before { background: var(--net-jovens) !important; }
     html[data-color=on] .gvv-house.c-adolescentes::before { background: var(--net-adolescentes) !important; }
@@ -293,17 +306,16 @@
     html[data-color=on] .gvv-badge.warn { background: #ea580c !important; border-color: #ea580c !important; color: #fff !important; }
     html[data-color=on] .gvv-badge.lead { background: #2563eb !important; border-color: #2563eb !important; color: #fff !important; }
     html[data-color=on] .gvv-badge.risk { background: #dc2626 !important; border-color: #dc2626 !important; color: #fff !important; }
-    html[data-color=on] .gvv-house:not(.done) .gvv-house-foot .gvv-badge:not(.ok):not(.warn):not(.lead) { background: #f97316 !important; color: #fff !important; border-color: #f97316 !important; }
-    html[data-color=on] .gvv-house.done { box-shadow: inset 0 0 0 2px #16a34a; }
     html[data-color=on] .gvv-person-card.house { border-left: 6px solid #f59e0b !important; }
     html[data-color=on] .gvv-person-card.leader { border-left: 6px solid #3b82f6 !important; }
     html[data-color=on] .gvv-person-card.vice { border-left: 6px solid #a855f7 !important; }
-    html[data-color=on] .gvv-stat:nth-child(6n+1):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #3b82f6; }
-    html[data-color=on] .gvv-stat:nth-child(6n+2):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #10b981; }
-    html[data-color=on] .gvv-stat:nth-child(6n+3):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #a855f7; }
-    html[data-color=on] .gvv-stat:nth-child(6n+4):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #f59e0b; }
-    html[data-color=on] .gvv-stat:nth-child(6n+5):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #ec4899; }
-    html[data-color=on] .gvv-stat:nth-child(6n):not(.blue):not(.lime):not(.warn) { border-top: 5px solid #06b6d4; }
+    html[data-color=on] .gvv-stat:nth-child(6n+1):not(.blue):not(.lime):not(.warn) { background: #3b82f6 !important; border-color: #3b82f6 !important; color: #fff !important; }
+    html[data-color=on] .gvv-stat:nth-child(6n+2):not(.blue):not(.lime):not(.warn) { background: #10b981 !important; border-color: #10b981 !important; color: #fff !important; }
+    html[data-color=on] .gvv-stat:nth-child(6n+3):not(.blue):not(.lime):not(.warn) { background: #a855f7 !important; border-color: #a855f7 !important; color: #fff !important; }
+    html[data-color=on] .gvv-stat:nth-child(6n+4):not(.blue):not(.lime):not(.warn) { background: #f59e0b !important; border-color: #f59e0b !important; color: #fff !important; }
+    html[data-color=on] .gvv-stat:nth-child(6n+5):not(.blue):not(.lime):not(.warn) { background: #ec4899 !important; border-color: #ec4899 !important; color: #fff !important; }
+    html[data-color=on] .gvv-stat:nth-child(6n):not(.blue):not(.lime):not(.warn) { background: #06b6d4 !important; border-color: #06b6d4 !important; color: #fff !important; }
+    html[data-color=on] .gvv-stat span { color: inherit !important; opacity: .9; }
     html[data-color=on] .gvv-house-pin.n-misto { background: var(--net-misto); color: #fff; }
     html[data-color=on] .gvv-house-pin.n-jovens { background: var(--net-jovens); color: #fff; }
     html[data-color=on] .gvv-house-pin.n-adolescentes { background: var(--net-adolescentes); color: #fff; }
@@ -3924,6 +3936,34 @@
         finally { setBusy(""); }
       };
       const selConn = sel ? connOf(sel.id) : null;
+      const [viceOpen, setViceOpen] = useState(false), [viceTo, setViceTo] = useState("");
+      useEffect(() => { setViceOpen(false); setViceTo(selConn?.vice_candidate_id || ""); }, [selId, selConn?.vice_candidate_id]);
+      const saveVice = async (v) => {
+        const { error } = await supabase.rpc("gvv_update_group", { p_conn: selConn.id, p_vice: v || null, p_day: selConn.meeting_day || "", p_time: selConn.meeting_time || "", p_start: selConn.start_date || null });
+        if (error) return toast.error(error.message);
+        toast.success(v ? "Vice-líder salvo." : "Vice removido."); setViceOpen(false); loadConns();
+      };
+      const viceBox = () => {
+        if (!selConn) return null;
+        const v = selConn.vice_candidate_id ? [...leaders, ...houses].find((x) => x.id === selConn.vice_candidate_id) : null;
+        return (
+          <div className="mt-4 p-4 rounded-xl" style={{ border: `2px ${v ? "solid" : "dashed"} ${v ? "#a855f7" : "var(--gvv-lime)"}` }}>
+            <p className="text-xs font-bold tracking-wider txt-muted">VICE-LÍDER</p>
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
+              <b className="text-lg">{v ? v.name : "Ainda sem vice"}</b>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => setViceOpen((o) => !o)}>{viceOpen ? "Fechar" : v ? "⇄ Trocar vice" : "+ Adicionar vice-líder"}</Button>
+                {v && <Button size="sm" variant="outline" onClick={() => { if (confirm(`Tirar ${v.name.split(" ")[0]} de vice?`)) saveVice(""); }}>Tirar</Button>}
+              </div>
+            </div>
+            {viceOpen && <div className="mt-3 space-y-3">
+              <GvvLeaderPick label="Vice-líder" allowEmpty={false} value={viceTo} onChange={setViceTo} origin={selPt} tagOf={tagOf}
+                options={leaders.filter((l) => l.kind === "leader" && (!connOf(l.id) || l.id === selConn.vice_candidate_id) && l.id !== selConn.leader_candidate_id)} />
+              <div className="flex justify-end"><Button onClick={() => saveVice(viceTo)} disabled={!viceTo || viceTo === selConn.vice_candidate_id}>✓ Salvar vice</Button></div>
+            </div>}
+          </div>
+        );
+      };
       return (
         <div className="space-y-4">
           <div className="mm-card p-3 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
@@ -4025,6 +4065,7 @@
                   <span className="gvv-tagno big">GVV pronto</span>
                   <h4 className="font-serif text-[30px] mt-3 leading-none">{sel.name.split(" ")[0]} lidera na própria casa</h4>
                   <p className="txt-muted mt-2">Quem é líder + anfitrião não precisa de outro líder. Esta casa já conta como GVV {tagOf[sel.id].replace("CASA ", "")} · {tagOf["net:" + sel.id]}.</p>
+                  {viceBox()}
                   {!selConn && <Button className="mt-3" onClick={() => setAsk({ l: sel, km: 0 })}>Formar GVV e escolher vice →</Button>}
                   {false && <Button className="mt-3" variant="outline" onClick={async () => { const { error } = await supabase.rpc("gvv_connect_candidates", { p_leader: sel.id, p_host: sel.id, p_notes: "Líder + anfitrião (ele mesmo lidera)" }); if (error) return toast.error(error.message); toast.success("GVV formado! Veja em Conectados."); loadConns(); }}><ICheck className="w-4 h-4" /> Formar este GVV (ele mesmo lidera)</Button>}
                   {!selConn && <>
@@ -4035,12 +4076,13 @@
               ) : (
               <div className="gvv-house-near">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="font-serif text-[22px]">Líderes até {radius} km</h4>
+                  <h4 className="font-serif text-[22px]">{selConn ? "GVV formado" : `Líderes até ${radius} km`}</h4>
                   {sel.kind === "both" && <button onClick={() => setAssign(false)} className="gvv-chip">← Ele mesmo lidera</button>}
                   <div className="flex flex-wrap items-center gap-2">
                     {[3, 5, 10].map((r) => <button key={r} onClick={() => setRadius(r)} className={`gvv-chip ${radius === r ? "on" : ""}`}>{r} km</button>)}
                   </div>
                 </div>
+                {viceBox()}
                 {!selPt ? <p className="gvv-conferir mt-3">Esta casa ainda não tem localização (CEP inválido ou ausente). Corrija o endereço para calcular distâncias.</p> : <>
                   <div ref={mapEl} className="gvv-house-map" />
                   <input className="w-full text-sm px-3 py-2 rounded-lg mt-3" style={{ border: "1px solid var(--line)", background: "var(--surface)" }} placeholder="Ou buscar líder pelo nome (qualquer distância)…" value={nameQ} onChange={(e) => setNameQ(e.target.value)} />
