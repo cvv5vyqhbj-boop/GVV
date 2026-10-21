@@ -263,8 +263,8 @@
     .church-pin svg { transform: rotate(45deg); }
     .leaflet-tooltip.church-map-label { color: #a9322d; font-size: 14px; font-weight: 700; background: #fffffff0; border: 0; border-radius: 6px; padding: 5px 8px; box-shadow: 0 2px 8px #25363515; }
     .leaflet-tooltip.church-map-label::before { display: none; }
-    .leaflet-tooltip.gvv-id-label { background: #0b1a2e; color: #fff; border: 0; border-radius: 6px; padding: 3px 7px; font-size: 11.5px; font-weight: 800; letter-spacing: .04em; box-shadow: 0 2px 6px #0004; }
-    .leaflet-tooltip.gvv-id-label::before { display: none; }
+    .gvv-house-pin.on { transform: scale(1.25); box-shadow: 0 0 0 4px #c1ed2866, 0 3px 10px #0005; }
+    .gvv-house-pin.approx { border-style: dashed !important; }
     .cell-map-frame { isolation: isolate; border-radius: 18px; }
     .cell-map-frame .map-tool { background: rgba(255,255,255,.96); color: #354b50; border-color: #dfe7e5; box-shadow: 0 3px 14px #193d3212; }
     .cell-map-frame .map-tool .txt-soft, .cell-map-frame .map-tool .txt-muted { color: #53665f; }
@@ -7095,6 +7095,8 @@
     const pinHtml = (score, col, sel) =>
       `<div class="cpin${sel ? " sel" : ""}" style="--pin:${col}"><span class="h"></span><span class="t"></span><span class="b">${score}</span></div>`;
     const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    /* Pino limpo do GVV formado: só o número da casa; detalhes no clique. */
+    const gvvHousePinIcon = (n, on, approx) => window.L.divIcon({ className: "", html: `<div class="gvv-house-pin${on ? " on" : ""}${approx ? " approx" : ""}">${escHtml(n)}</div>`, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -18] });
     const pinIcon = (score, col, sel) => window.L.divIcon({ className: "", html: pinHtml(score, col, sel), iconSize: [40, 50], iconAnchor: [20, 46], popupAnchor: [0, -44] });
 
     const CELL_AUDIENCES = ["Mista", "Adultos", "Jovens", "Adolescentes", "Mulheres", "Idosos"];
@@ -7299,8 +7301,10 @@
             { closeButton: true, autoPanPadding: [40, 40] }
           );
           m.on("click", () => setSel(cell.id));
-          if (overview && cell.gvv_id) m.bindTooltip(escHtml(cell.gvv_id.split(" · ")[0]) + (cell.approx ? " ~" : ""), { permanent: true, direction: "right", offset: [14, -22], className: "gvv-id-label" });
-          markers.current[cell.id] = { m, col, score: overview ? "•" : h.score };
+          const house = overview && cell.kind === "gvv" ? ((cell.gvv_id || "").match(/CASA (\S+)/) || [])[1] || "?" : null;
+          const iconOf = house ? (on) => gvvHousePinIcon(house, on, cell.approx) : (on) => pinIcon(overview ? "•" : h.score, col, on);
+          if (house) m.setIcon(iconOf(String(cell.id) === String(sel)));
+          markers.current[cell.id] = { m, col, score: overview ? "•" : h.score, iconOf };
           pts.push(ll);
         });
         // O container pode ter acabado de aparecer (troca de aba): mede de novo antes de enquadrar
@@ -7312,8 +7316,8 @@
 
       // Destaca o pino selecionado (selo maior + pulso)
       useEffect(() => {
-        Object.entries(markers.current).forEach(([id, { m, col, score }]) => {
-          m.setIcon(pinIcon(score, col, String(id) === String(sel)));
+        Object.entries(markers.current).forEach(([id, { m, col, score, iconOf }]) => {
+          m.setIcon(iconOf ? iconOf(String(id) === String(sel)) : pinIcon(score, col, String(id) === String(sel)));
           m.setZIndexOffset(String(id) === String(sel) ? 1000 : 0);
         });
       }, [sel]);
