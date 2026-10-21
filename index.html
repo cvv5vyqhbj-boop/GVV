@@ -2181,7 +2181,7 @@
 
       useEffect(() => {
         if (!el.current || map.current || !window.L) return;
-        map.current = window.L.map(el.current, { zoomControl: true, attributionControl: true }).setView([-25.4284, -49.2733], 12);
+        map.current = window.L.map(el.current, { zoomControl: true, attributionControl: true, maxZoom: 16 }).setView([-25.4284, -49.2733], 12);
         const attribution = '© <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>';
         try {
           if (!window.L.maplibreGL) throw new Error("sem webgl");
@@ -2207,6 +2207,7 @@
             icon: window.L.divIcon({ className: "", html: `<div class="gvv-pin${sel === c.id ? " on" : ""}" style="--pin:${gvvAudienceColor(c.audience)}"></div>`, iconSize: [22, 22], iconAnchor: [11, 11] }),
             title: c.name,
           }).on("click", () => setSel(c.id));
+          window.L.circle([c.lat, c.lng], { radius: +c.radius || 300, color: gvvAudienceColor(c.audience), weight: 1, opacity: .6, fillOpacity: sel === c.id ? .18 : .08, interactive: false }).addTo(layer.current);
           m.addTo(layer.current); markers.current[c.id] = m;
         });
         if (!origin && shown.length) map.current.fitBounds(shown.map((c) => [c.lat, c.lng]).concat([[ADVEC_CHURCH.lat, ADVEC_CHURCH.lng]]), { padding: [40, 40], maxZoom: 14 });
@@ -2239,6 +2240,9 @@
           { enableHighAccuracy: true, timeout: 12000 });
       };
       const focus = (c) => { setSel(c.id); map.current?.flyTo([c.lat, c.lng], 15, { duration: 0.5 }); };
+      const waLink = (c) => { const d = String(c.whatsapp || "").replace(/\D/g, ""); if (d.length < 10) return null;
+        const txt = `Olá${c.leader_first ? ", " + c.leader_first : ""}! Encontrei o ${c.name} no site da ADVEC e quero participar. Pode me passar as informações?`;
+        return `https://wa.me/${d.startsWith("55") ? d : "55" + d}?text=${encodeURIComponent(txt)}`; };
       const join = (c) => { try { sessionStorage.setItem("gvv_pref_cell", JSON.stringify({ id: c.id, name: c.name })); } catch (e) {} gvvNavigate("participar"); };
       const audiences = CELL_AUDIENCES.filter((a) => cells.some((c) => c.audience === a));
 
@@ -2271,11 +2275,13 @@
                     <b>{c.name}</b>{c.km != null && <span className="gvv-km">{gvvFmtKm(c.km)}</span>}
                   </div>
                   <p>{[c.audience, [c.weekday, c.time].filter(Boolean).join(" · "), c.neighborhood].filter(Boolean).join(" — ") || "Detalhes com a liderança"}</p>
-                  {sel === c.id && <button type="button" className="gvv-btn lime sm" onClick={(e) => { e.stopPropagation(); join(c); }}>Quero participar deste GVV</button>}
+                  {sel === c.id && (waLink(c)
+                    ? <a className="gvv-btn lime sm" href={waLink(c)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Falar com o líder{c.leader_first ? ` ${c.leader_first}` : ""} no WhatsApp</a>
+                    : <button type="button" className="gvv-btn lime sm" onClick={(e) => { e.stopPropagation(); join(c); }}>Quero participar deste GVV</button>)}
                 </div>
               ))}
               {!loadErr && !shown.length && <p className="gvv-list-head">Nenhum GVV no mapa ainda.</p>}
-              <p className="gvv-fine">Localização aproximada. O endereço exato é passado pelo líder.</p>
+              <p className="gvv-fine">Cada círculo mostra uma área de 300 m onde o GVV acontece. O endereço exato é passado pelo líder no WhatsApp.</p>
             </aside>
           </div>
         </div>
@@ -2538,39 +2544,100 @@
 
     /* Aba GVVs: visão geral da rede no mesmo estilo de Cadastros. */
     const GvvHubView = () => {
-      const [stats, setStats] = useState(null);
+      const [d, setD] = useState(null);
+      const [open, setOpen] = useState("");
+      const [view, setView] = useState("lista");
+      const [mapCells, setMapCells] = useState(null);
       useEffect(() => { (async () => {
         const [c, k, m, r] = await Promise.all([
-          supabase.from("gvv_connections").select("id,vice_candidate_id,start_date"),
-          supabase.from("gvv_candidates").select("id,kind,leader_status,host_status"),
-          supabase.from("gvv_members").select("id,status"),
-          supabase.from("gvv_reports").select("meeting_date,conversions,visitors"),
+          supabase.from("gvv_connections").select("*"),
+          supabase.from("gvv_candidates").select("id,name,kind,leader_status,host_status,house_no,network,neighborhood,phone"),
+          supabase.from("gvv_members").select("id,full_name,phone,status,connection_id,joined_at,kind"),
+          supabase.from("gvv_reports").select("connection_id,meeting_date,happened,present_ids,visitors,conversions"),
         ]);
-        const cand = k.data || [], conns = c.data || [], ms = (m.data || []).filter((x) => x.status === "ativo"), rs = r.data || [];
-        const month = todayISO().slice(0, 7);
-        setStats({
-          gvvs: conns.length, semVice: conns.filter((x) => !x.vice_candidate_id).length,
-          casas: cand.filter((x) => x.kind !== "leader" && x.host_status === "approved").length,
-          lideres: cand.filter((x) => x.kind !== "host" && x.leader_status === "approved").length,
-          aguardando: cand.filter(gvvPending).length, membros: ms.length,
-          relMes: rs.filter((x) => (x.meeting_date || "").startsWith(month)).length,
-          jesus: rs.reduce((a, x) => a + (x.conversions || 0), 0),
-        });
+        setD({ conns: c.data || [], cands: k.data || [], members: m.data || [], reports: r.data || [] });
       })(); }, []);
-      const S = ({ n, l, tone }) => <div className={`gvv-stat ${tone || ""}`}><b>{n ?? "—"}</b><span>{l}</span></div>;
+      useEffect(() => { if (view === "mapa" && !mapCells) supabase.rpc("gvv_map_overview").then(({ data }) => setMapCells((data || []).filter((x) => x.kind === "gvv"))); }, [view]);
+      const S = ({ n, l, tone, k }) => <button type="button" onClick={() => k && setOpen(open === k ? "" : k)} aria-pressed={open === k}
+        className={`gvv-stat ${tone || ""} text-left`} style={{ cursor: k ? "pointer" : "default", outline: open === k ? "2px solid var(--gvv-blue)" : "none" }}><b>{n ?? "—"}</b><span>{l}{k ? " ›" : ""}</span></button>;
+      if (!d) return <div className="space-y-5"><p role="status">Carregando rede…</p></div>;
+      const byId = Object.fromEntries(d.cands.map((x) => [x.id, x]));
+      const today = todayISO(), ago = (n) => { const x = new Date(); x.setDate(x.getDate() - n); return x.toISOString().slice(0, 10); };
+      const tag = (conn) => { const h = byId[conn.host_candidate_id] || {}; return `CASA ${String(h.house_no ?? "").padStart(2, "0")} · ${(h.name || "").split(" ")[0]}`; };
+      const connById = Object.fromEntries(d.conns.map((x) => [x.id, x]));
+      const ativos = d.members.filter((x) => x.status === "ativo");
+      const novos = d.conns.filter((x) => (x.start_date || (x.created_at || "").slice(0, 10)) >= ago(30));
+      const rep90 = d.reports.filter((x) => x.happened && x.meeting_date >= ago(90) && x.meeting_date <= today);
+      // Em risco: membro ativo que faltou nos 2 últimos encontros do seu GVV (entrou antes deles).
+      const lastByConn = {};
+      d.reports.filter((x) => x.happened).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).forEach((x) => { (lastByConn[x.connection_id] = lastByConn[x.connection_id] || []).push(x); });
+      const risco = ativos.filter((mb) => { const last = (lastByConn[mb.connection_id] || []).filter((x) => !mb.joined_at || x.meeting_date >= mb.joined_at).slice(0, 2);
+        return last.length === 2 && last.every((x) => !(x.present_ids || []).includes(mb.id)); });
+      const semEncontro = d.conns.filter((c) => !(lastByConn[c.id] || []).some((x) => x.meeting_date >= ago(30)));
+      const st = {
+        gvvs: d.conns.length, semVice: d.conns.filter((x) => !x.vice_candidate_id),
+        casas: d.cands.filter((x) => x.kind !== "leader" && x.host_status === "approved").length,
+        lideres: d.cands.filter((x) => x.kind !== "host" && x.leader_status === "approved").length,
+        aguardando: d.cands.filter(gvvPending), relMes: d.reports.filter((x) => (x.meeting_date || "").startsWith(today.slice(0, 7))).length,
+        jesus: d.reports.reduce((a, x) => a + (x.conversions || 0), 0),
+      };
+      // Gráficos: encontros e visitantes por mês (6 meses) e GVVs por rede
+      const months = Array.from({ length: 6 }, (_, i) => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - 5 + i); return x.toISOString().slice(0, 7); });
+      const perMonth = months.map((mo) => ({ mo, enc: d.reports.filter((x) => x.happened && x.meeting_date.startsWith(mo)).length, vis: d.reports.filter((x) => x.meeting_date.startsWith(mo)).reduce((a, x) => a + (x.visitors || 0), 0) }));
+      const maxM = Math.max(1, ...perMonth.map((x) => Math.max(x.enc, x.vis)));
+      const perNet = GVV_ROSTER_CATS.map((c) => ({ ...c, n: d.conns.filter((x) => (byId[x.host_candidate_id]?.network || "misto") === c.k).length, m: ativos.filter((mb) => (byId[connById[mb.connection_id]?.host_candidate_id]?.network || "misto") === c.k).length }));
+      const maxN = Math.max(1, ...perNet.map((x) => x.n));
+      const lists = {
+        novos: { t: "GVVs novos (últimos 30 dias)", rows: novos.map((c) => [tag(c), c.start_date ? `início ${fmtDate(c.start_date)}` : `formado ${fmtDate((c.created_at || "").slice(0, 10))}`]) },
+        enc: { t: "Encontros nos últimos 90 dias", rows: rep90.sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => [connById[x.connection_id] ? tag(connById[x.connection_id]) : "GVV", `${fmtDate(x.meeting_date)} · ${(x.present_ids || []).length} presentes · ${x.visitors || 0} visit.`]) },
+        risco: { t: "Pessoas em risco (faltaram nos 2 últimos encontros)", rows: risco.map((mb) => [mb.full_name, `${connById[mb.connection_id] ? tag(connById[mb.connection_id]) : ""}${mb.phone ? " · " + mb.phone : ""}`]) },
+        sem: { t: "GVVs sem encontro há 30 dias", rows: semEncontro.map((c) => [tag(c), (lastByConn[c.id] || [])[0] ? `último ${fmtDate(lastByConn[c.id][0].meeting_date)}` : "nenhum relatório"]) },
+        vice: { t: "GVVs sem vice", rows: st.semVice.map((c) => [tag(c), byId[c.host_candidate_id]?.neighborhood || ""]) },
+        agu: { t: "Inscrições aguardando", rows: st.aguardando.map((x) => [x.name, ({ leader: "líder", host: "anfitrião", both: "líder + anfitrião" })[x.kind] || ""]) },
+      };
+      const Bar = ({ v, max, color }) => <div style={{ height: 8, borderRadius: 4, background: "var(--surface-2)" }}><div style={{ width: `${(v / max) * 100}%`, height: "100%", borderRadius: 4, background: color }} /></div>;
       return (
         <div className="space-y-5">
           <div className="gvv-hub-head">
             <div><p className="gvv-hub-kicker">ADVEC Curitiba</p><h2 className="font-serif text-[40px] leading-none">Rede <span style={{ color: "var(--gvv-blue)" }}>GVV</span></h2>
-              <p className="txt-muted mt-1">Acompanhe, cadastre e forme novos GVVs.</p></div>
+              <p className="txt-muted mt-1">Acompanhe, cadastre e forme novos GVVs. Clique num número para ver a lista.</p></div>
           </div>
           <div className="gvv-stats">
-            <S n={stats?.gvvs} l="GVVs formados" tone="blue" /><S n={stats?.casas} l="casas aprovadas" /><S n={stats?.lideres} l="líderes aprovados" />
-            <S n={stats?.membros} l="membros ativos" /><S n={stats?.relMes} l="relatórios no mês" /><S n={stats?.jesus} l="aceitaram Jesus" tone="lime" />
-            {stats?.aguardando > 0 && <S n={stats.aguardando} l="inscrições aguardando" tone="warn" />}
-            {stats?.semVice > 0 && <S n={stats.semVice} l="GVVs sem vice" tone="warn" />}
+            <S n={st.gvvs} l="GVVs formados" tone="blue" /><S n={novos.length} l="GVVs novos (30 dias)" k="novos" />
+            <S n={rep90.length} l="encontros em 90 dias" k="enc" /><S n={risco.length} l="pessoas em risco" tone={risco.length ? "warn" : ""} k="risco" />
+            <S n={ativos.length} l="membros ativos" /><S n={st.casas} l="casas aprovadas" /><S n={st.lideres} l="líderes aprovados" />
+            <S n={st.relMes} l="relatórios no mês" /><S n={st.jesus} l="aceitaram Jesus" tone="lime" />
+            <S n={semEncontro.length} l="sem encontro há 30 dias" tone={semEncontro.length ? "warn" : ""} k="sem" />
+            {st.aguardando.length > 0 && <S n={st.aguardando.length} l="inscrições aguardando" tone="warn" k="agu" />}
+            {st.semVice.length > 0 && <S n={st.semVice.length} l="GVVs sem vice" tone="warn" k="vice" />}
           </div>
-          <GvvRosterView initialMode="conectados" title="GVVs da rede" />
+          {open && <div className="mm-card p-4">
+            <div className="flex justify-between items-center gap-3"><h3 className="font-semibold">{lists[open].t}</h3><button type="button" className="txt-muted text-sm" onClick={() => setOpen("")}>Fechar ✕</button></div>
+            {!lists[open].rows.length ? <p className="txt-muted text-sm mt-2">Nada por aqui.</p> :
+              <ul className="mt-2 divide-y" style={{ borderColor: "var(--line)" }}>{lists[open].rows.map(([a, b], i) => <li key={i} className="py-2 flex justify-between gap-3 text-sm"><b>{a}</b><span className="txt-muted text-right">{b}</span></li>)}</ul>}
+          </div>}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="mm-card p-4">
+              <h3 className="font-semibold">Encontros e visitantes por mês</h3>
+              <div className="flex gap-4 text-xs txt-muted mt-1"><span><i style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--gvv-blue)", marginRight: 5 }} />encontros</span><span><i style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#8bb51a", marginRight: 5 }} />visitantes</span></div>
+              <div className="mt-3 space-y-3">{perMonth.map((x) => <div key={x.mo} className="grid gap-1" style={{ gridTemplateColumns: "44px 1fr 34px", alignItems: "center" }}>
+                <span className="text-xs txt-muted" style={{ gridRow: "span 2" }}>{GVV_MONTHS[+x.mo.slice(5) - 1].slice(0, 3)}</span>
+                <Bar v={x.enc} max={maxM} color="var(--gvv-blue)" /><b className="text-xs text-right">{x.enc}</b>
+                <Bar v={x.vis} max={maxM} color="#8bb51a" /><b className="text-xs text-right">{x.vis}</b></div>)}</div>
+            </div>
+            <div className="mm-card p-4">
+              <h3 className="font-semibold">GVVs e membros por rede</h3>
+              <div className="mt-3 space-y-3">{perNet.map((x) => <div key={x.k}>
+                <div className="flex justify-between text-sm"><span>{x.label}</span><span className="txt-muted"><b style={{ color: "var(--fg)" }}>{x.n}</b> GVVs · {x.m} membros</span></div>
+                <Bar v={x.n} max={maxN} color="var(--gvv-blue)" /></div>)}</div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className={`gvv-chip ${view === "lista" ? "on" : ""}`} onClick={() => setView("lista")}>Lista da rede</button>
+            <button type="button" className={`gvv-chip ${view === "mapa" ? "on" : ""}`} onClick={() => setView("mapa")}>Mapa da rede</button>
+          </div>
+          {view === "mapa" ? (mapCells ? <CellsMap overview items={mapCells.map((cell) => ({ cell, h: {} }))} /> : <p role="status">Carregando mapa…</p>)
+            : <GvvRosterView initialMode="conectados" title="GVVs da rede" />}
         </div>
       );
     };
@@ -6934,15 +7001,34 @@
       };
       useEffect(() => { load(); }, []);
       const filtered = cells.filter((c) => (!audience || (audience === "unknown" ? !c.audience : c.audience === audience)) &&
-        [c.name, c.neighborhood, c.city].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
-      return <div className="space-y-5"><div><h1 className="font-serif text-3xl">Mapa · visão geral</h1><p className="txt-muted mt-2">Encontre um GVV em Curitiba e região. Clique no pino para ver o público, o endereço e o horário.</p></div>
-        <div className="mm-card p-4 grid sm:grid-cols-2 gap-4"><Input label="Buscar por GVV, bairro ou cidade" value={query} onChange={(e) => setQuery(e.target.value)} /><Select label="Público" value={audience} onChange={setAudience} options={[{value:"",label:"Todos os públicos"},...CELL_AUDIENCES.map((value) => ({value,label:value})),{value:"unknown",label:"Público não informado"}]} /></div>
-        {loading ? <p role="status">Carregando GVVs…</p> : error ? <div role="alert"><p>{error}</p><Button onClick={load}>Tentar novamente</Button></div> : <><p className="text-sm txt-muted">{filtered.length} GVV(s) ativa(s){!filtered.length ? " · Nenhum GVV corresponde aos filtros." : ""}</p><CellsMap overview items={filtered.map((cell) => ({cell,h:{}}))} /></>}
+        [c.name, c.neighborhood, c.city, c.leader_name, c.host_name].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
+      const audOpts = [...new Set(cells.map((c) => c.audience).filter(Boolean))].sort();
+      return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="font-serif text-3xl">Mapa · visão geral</h1><p className="txt-muted mt-2">Mapa da administração: GVVs formados e confirmados com endereço, líder, vice, membros e encontros. Clique no pino.</p></div>
+        <a className="gvv-map-full-btn" href="/mapa" target="_blank" rel="noopener noreferrer">Ver mapa público ↗</a></div>
+        <div className="mm-card p-4 grid sm:grid-cols-2 gap-4"><Input label="Buscar por GVV, bairro, líder ou anfitrião" value={query} onChange={(e) => setQuery(e.target.value)} /><Select label="Público / rede" value={audience} onChange={setAudience} options={[{value:"",label:"Todos"},...audOpts.map((value) => ({value,label:value})),{value:"unknown",label:"Público não informado"}]} /></div>
+        {loading ? <p role="status">Carregando GVVs…</p> : error ? <div role="alert"><p>{error}</p><Button onClick={load}>Tentar novamente</Button></div> : <><p className="text-sm txt-muted">{filtered.filter((c) => c.kind === "gvv").length} GVV(s) formado(s) · {filtered.length} no total{!filtered.length ? " · Nenhum GVV corresponde aos filtros." : ""}</p><CellsMap overview items={filtered.map((cell) => ({cell,h:{}}))} /></>}
       </div>;
     };
 
-    const GVV_AUDIENCE_COLORS={Jovens:'#3277b7',Adolescentes:'#8054be',Mista:'#159482',Adultos:'#d58a38',Mulheres:'#c64d86',Idosos:'#6978a4'};
+    const GVV_AUDIENCE_COLORS={Juniores:'#c58a12',Jovens:'#3277b7',Adolescentes:'#8054be',Mista:'#159482',Adultos:'#d58a38',Mulheres:'#c64d86',Idosos:'#6978a4'};
     const gvvAudienceColor=audience=>GVV_AUDIENCE_COLORS[/^mist[oa]$/i.test(audience||'')?'Mista':audience]||'#788596';
+
+    /* Popup do mapa ADM para GVV formado: tudo que a coordenação precisa. */
+    const gvvAdminPopup = (c) => {
+      const wa = (p) => { const d = String(p || "").replace(/\D/g, ""); return d.length >= 10 ? `<a href="https://wa.me/${d.startsWith("55") ? d : "55" + d}" target="_blank" rel="noopener noreferrer">${escHtml(p)}</a>` : "—"; };
+      const row = (l, v) => `<div style="display:flex;justify-content:space-between;gap:10px;margin-top:3px"><span style="color:var(--muted)">${l}</span><b style="text-align:right">${v}</b></div>`;
+      return `<div class="map-pop-head"><b>${escHtml(c.name)}</b><div style="font-size:12px;color:var(--muted)">GVV formado · ${escHtml(c.audience || "Misto")}</div></div>` +
+        `<div class="map-pop-body">` +
+        `<p>${escHtml([c.address, c.neighborhood].filter(Boolean).join(" · ") || "Endereço não informado")}</p>` +
+        row("Dia", escHtml([c.weekday, c.time].filter(Boolean).join(" · ") || "a definir")) +
+        row("Início", c.start_date ? escHtml(fmtDate(c.start_date)) : "—") +
+        row("Anfitrião", escHtml(c.host_name || "—")) + row("Tel. casa", wa(c.host_phone)) +
+        row("Líder", escHtml(c.leader_name || "—")) + row("Tel. líder", wa(c.leader_phone)) +
+        row("Vice", escHtml(c.vice_name || "sem vice")) +
+        row("Membros ativos", c.members ?? 0) + row("Encontros 90 dias", c.meetings_90 ?? 0) +
+        row("Visitantes 90 dias", c.visitors_90 ?? 0) + row("Último encontro", c.last_meeting ? escHtml(fmtDate(c.last_meeting)) : "nenhum") +
+        `<a class="map-pop-btn" style="display:block;text-align:center" href="${streetViewUrl(c.lat, c.lng)}" target="_blank" rel="noopener noreferrer">Street View ↗</a></div>`;
+    };
 
     const CellsMap = ({ items, onReport, overview = false }) => {
       const frame = useRef(null);
@@ -7062,7 +7148,7 @@
           const m = window.L.marker(ll, { icon: pinIcon(overview ? "•" : h.score, col, String(cell.id) === String(sel)), title: cell.name, alt: cell.name, riseOnHover: true }).addTo(layer.current);
           const stLabel = (HEALTH[h.status] || {}).label || "";
           m.bindPopup(overview ?
-            `<div class="map-pop-head"><b>${escHtml(cell.name)}</b></div><div class="map-pop-body"><b>${escHtml(cell.audience || "Público não informado")}</b><p>${escHtml(cell.weekday || "Dia a combinar")}${cell.time ? " · " + escHtml(cell.time) : ""}</p><p>${escHtml([cell.address, cell.neighborhood, cell.city].filter(Boolean).join(" · "))}</p><a class="map-pop-btn" style="display:block;text-align:center" href="${streetViewUrl(cell.lat, cell.lng)}" target="_blank" rel="noopener noreferrer">Street View ↗</a></div>` :
+            (cell.kind === "gvv" ? gvvAdminPopup(cell) : `<div class="map-pop-head"><b>${escHtml(cell.name)}</b></div><div class="map-pop-body"><b>${escHtml(cell.audience || "Público não informado")}</b><p>${escHtml(cell.weekday || "Dia a combinar")}${cell.time ? " · " + escHtml(cell.time) : ""}</p><p>${escHtml([cell.address, cell.neighborhood, cell.city].filter(Boolean).join(" · "))}</p><a class="map-pop-btn" style="display:block;text-align:center" href="${streetViewUrl(cell.lat, cell.lng)}" target="_blank" rel="noopener noreferrer">Street View ↗</a></div>`) :
             `<div class="map-pop-head">` +
               `<div style="display:flex;align-items:center;gap:8px">` +
                 `<span style="flex-shrink:0;min-width:34px;height:26px;padding:0 6px;border-radius:6px;background:${col};color:#fff;font-weight:700;display:inline-flex;align-items:center;justify-content:center">${h.score}</span>` +
