@@ -447,8 +447,8 @@
     .kid-label { display:none; }
     @media print {
       /* :not(.printing-report) evita conflito com a impressão do relatório financeiro */
-      body:not(.printing-report) * { visibility: hidden !important; }
-      body:not(.printing-report) #kid-print, body:not(.printing-report) #kid-print * { visibility: visible !important; }
+      body.printing-kid * { visibility: hidden !important; }
+      body.printing-kid #kid-print, body.printing-kid #kid-print * { visibility: visible !important; }
       body:not(.printing-report) #kid-print { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
       .kid-label { display:block !important; page-break-after: always; padding: 10mm; font-family: "Helvetica Now Display", "Inter Tight", sans-serif; color:#000; background:#fff; }
       .kid-label .kl-name { font-size: 30pt; font-weight: 800; line-height:1.05; letter-spacing:-.5pt; }
@@ -926,6 +926,8 @@
       html, body, #root, #root > *, .h-screen, .min-h-screen, main, .flex-1 { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; position: static !important; }
       .fixed:not(.gvv-modal), .sticky { position: static !important; }
       .toast, [role="alert"].fixed { display: none !important; }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      body, .mm-card, .gvv-house, .gvv-cell, .gvv-person, .gvv-table td, .gvv-mlist li, .gvv-reports li, .gvv-cal-day, .gvv-detail-head, .gvv-person-card, .mm-node:not(.root):not(.cat) { color: #000 !important; }
       .gvv-print-only { display: flex !important; }
       .gvv-print-head { justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #2B77E4; padding-bottom: 6px; margin-bottom: 10px; }
       .gvv-print-head b { font-family: var(--gvv-display); font-size: 22px; font-weight: 400; color: #2B77E4; margin-right: 10px; text-transform: uppercase; }
@@ -2528,7 +2530,7 @@
                 <button className={mode === "tabela" ? "on" : ""} onClick={() => setMode("tabela")}>Tabela</button>
               </div>
               {mode === "tabela" && <Button variant="outline" size="sm" onClick={exportCsv} disabled={!list.length}>Baixar planilha desta aba</Button>}
-              <Button variant="outline" size="sm" onClick={gvvPrint}>🖨 Imprimir</Button>
+              <Button variant="outline" size="sm" className="gvv-no-print" onClick={gvvPrint}>🖨 Imprimir</Button>
             </div>
           </div>
           {all.filter(gvvPending).length > 0 && (
@@ -2839,7 +2841,7 @@
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div><h2 className="font-serif text-[26px] leading-tight">Calendário dos GVVs</h2>
               <p className="txt-muted text-sm">1º encontro 15 dias após o início · depois a cada 2 semanas, no dia escolhido.</p></div>
-            <Button variant="outline" size="sm" onClick={gvvPrint}>🖨 Imprimir</Button>
+            <Button variant="outline" size="sm" className="gvv-no-print" onClick={gvvPrint}>🖨 Imprimir</Button>
           </div>
           <GvvPrintHead title={`Calendário · ${GVV_MONTHS[m]} ${y}`} />
           <div className="flex flex-wrap items-center gap-2 gvv-no-print">
@@ -3196,7 +3198,7 @@
         <div className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div><h2 className="font-serif text-[26px] leading-tight">Membros dos GVVs</h2><p className="txt-muted text-sm">Pessoas que já estão participando de um GVV.</p></div>
-            <Button variant="outline" size="sm" onClick={gvvPrint}>🖨 Imprimir</Button>
+            <Button variant="outline" size="sm" className="gvv-no-print" onClick={gvvPrint}>🖨 Imprimir</Button>
           </div>
           <GvvPrintHead title="Membros dos GVVs" sub={`${list.length} pessoas`} />
           <div className="mm-card p-3 grid gap-3 sm:grid-cols-3 gvv-no-print">
@@ -3696,7 +3698,7 @@
             <div><h2 className="font-serif text-[26px] leading-tight">Interessados</h2>
               <p className="txt-muted text-sm">Pessoas que pediram para fazer parte de um GVV pelo formulário público.</p></div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={gvvPrint}>🖨 Imprimir</Button>
+              <Button variant="outline" size="sm" className="gvv-no-print" onClick={gvvPrint}>🖨 Imprimir</Button>
               <Button variant="outline" size="sm" onClick={() => { navigator.clipboard?.writeText(share); toast.success("Link do formulário copiado."); }}>Copiar link do formulário</Button>
               <Button variant="outline" size="sm" onClick={() => { navigator.clipboard?.writeText(mapLink); toast.success("Link do mapa copiado."); }}>Copiar link do mapa</Button>
             </div>
