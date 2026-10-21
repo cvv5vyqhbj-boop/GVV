@@ -2543,6 +2543,108 @@
     };
 
     /* Aba GVVs: visão geral da rede no mesmo estilo de Cadastros. */
+    /* ===================== BATISMOS DOS GVVs =====================
+       ADM marca a data do próximo batismo; líderes e coordenação veem a contagem.
+       Quem optou pelo batismo no relatório entra na fila; no dia marca-se quem batizou. */
+    const GVV_BAP_STATUS = { aguardando: ["Aguardando", "warn"], batizou: ["Batizou", "ok"], nao_batizou: ["Não batizou", "risk"], desistiu: ["Desistiu", ""] };
+    const GVV_BAP_ADMIN = ["super_admin", "pastor", "secretaria", "administrativo"];
+    const gvvBapNames = (txt) => String(txt || "").split(/[\n;,]+/).map((x) => x.trim()).filter((x) => x.length >= 2).map((x) => {
+      const phone = (x.match(/\(?\d{2}\)?[\s-]?9?\d{4}[\s-]?\d{4}/) || [""])[0];
+      return { full_name: x.replace(phone, "").replace(/[-–(]\s*$/, "").trim() || x, phone };
+    });
+    const GvvBaptismPanel = ({ connId = null, tagOf = null }) => {
+      const toast = useToast();
+      const [dates, setDates] = useState([]), [people, setPeople] = useState(null), [role, setRole] = useState("");
+      const [edit, setEdit] = useState(false), [nd, setNd] = useState({ date: "", place: "" });
+      const [add, setAdd] = useState({ full_name: "", phone: "" }), [filter, setFilter] = useState("aguardando");
+      const [conns, setConns] = useState({});
+      const load = async () => {
+        const q = supabase.from("gvv_baptism_people").select("*").order("created_at", { ascending: false });
+        const [d, p] = await Promise.all([supabase.from("gvv_baptism_dates").select("*").order("date"), connId ? q.eq("connection_id", connId) : q]);
+        setDates(d.data || []); setPeople(p.error ? [] : (p.data || []));
+      };
+      useEffect(() => { load();
+        supabase.auth.getUser().then(({ data }) => supabase.from("profiles").select("role").eq("user_id", data?.user?.id || "").maybeSingle()).then(({ data }) => setRole(data?.role || ""));
+        if (!connId) Promise.all([supabase.from("gvv_connections").select("id,host_candidate_id"), supabase.from("gvv_candidates").select("id,name,house_no,network,network_no")]).then(([c, k]) => {
+          const by = Object.fromEntries((k.data || []).map((x) => [x.id, x]));
+          setConns(Object.fromEntries((c.data || []).map((x) => { const h = by[x.host_candidate_id]; return [x.id, h ? `${gvvIdOf(h)} · ${h.name.split(" ")[0]}` : "GVV"]; })));
+        });
+      }, [connId]);
+      const today = todayISO();
+      const next = dates.find((x) => x.date >= today);
+      const lastPast = [...dates].reverse().find((x) => x.date < today);
+      const days = next ? Math.round((new Date(next.date + "T12:00:00") - new Date(today + "T12:00:00")) / 864e5) : null;
+      const admin = GVV_BAP_ADMIN.includes(role);
+      const saveDate = async () => {
+        if (!nd.date) return toast.error("Escolha a data.");
+        const { error } = await supabase.from("gvv_baptism_dates").upsert({ date: nd.date, place: nd.place }, { onConflict: "date" });
+        if (error) return toast.error(error.message);
+        toast.success("Data do batismo salva."); setEdit(false); setNd({ date: "", place: "" }); load();
+      };
+      const delDate = async (id) => { if (!confirm("Remover esta data de batismo?")) return; await supabase.from("gvv_baptism_dates").delete().eq("id", id); load(); };
+      const upd = async (row, patch) => {
+        const { error } = await supabase.from("gvv_baptism_people").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", row.id);
+        if (error) return toast.error(error.message);
+        setPeople((ps) => ps.map((x) => x.id === row.id ? { ...x, ...patch } : x));
+      };
+      const addPerson = async () => {
+        if (add.full_name.trim().length < 2 || !connId) return;
+        const { error } = await supabase.from("gvv_baptism_people").insert({ connection_id: connId, full_name: add.full_name.trim(), phone: add.phone.trim(), baptism_date_id: next?.id || null });
+        if (error) return toast.error(/duplicate|unique/i.test(error.message) ? "Essa pessoa já está na lista." : error.message);
+        setAdd({ full_name: "", phone: "" }); load();
+      };
+      if (people === null) return <div className="mm-card p-4"><p role="status">Carregando batismos…</p></div>;
+      const count = (k) => people.filter((x) => x.status === k).length;
+      const shown = people.filter((x) => !filter || x.status === filter);
+      const dateOf = (id) => dates.find((x) => x.id === id);
+      return (
+        <div className="mm-card p-4 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold tracking-wider txt-muted">PRÓXIMO BATISMO</p>
+              {next ? <><h3 className="font-serif text-[30px] leading-tight">{days === 0 ? "É hoje! 💧" : days === 1 ? "Amanhã" : `Faltam ${days} dias`}</h3>
+                <p className="txt-muted text-sm">{fmtDate(next.date)}{next.place ? ` · ${next.place}` : ""} · {count("aguardando")} pessoa(s) aguardando</p></>
+                : <><h3 className="font-serif text-[24px] leading-tight">Data ainda não marcada</h3><p className="txt-muted text-sm">{admin ? "Marque a data para os líderes verem a contagem." : "A administração vai divulgar a próxima data."}</p></>}
+            </div>
+            {admin && <Button size="sm" variant="outline" onClick={() => setEdit((v) => !v)}>{edit ? "Cancelar" : "+ Data do batismo"}</Button>}
+          </div>
+          {admin && edit && <div className="grid sm:grid-cols-[180px_1fr_auto] gap-3 items-end">
+            <Input label="Data" type="date" value={nd.date} onChange={(e) => setNd((s) => ({ ...s, date: e.target.value }))} />
+            <Input label="Local (opcional)" value={nd.place} onChange={(e) => setNd((s) => ({ ...s, place: e.target.value }))} />
+            <Button onClick={saveDate}>Salvar</Button>
+          </div>}
+          {admin && dates.length > 0 && <div className="flex flex-wrap gap-2 text-xs">{dates.map((x) => <span key={x.id} className="gvv-chip">{fmtDate(x.date)}{x.place ? ` · ${x.place}` : ""} <button type="button" aria-label="Remover data" onClick={() => delDate(x.id)}>✕</button></span>)}</div>}
+          {lastPast && count("aguardando") > 0 && <div className="gvv-conferir">O batismo de {fmtDate(lastPast.date)} já passou. Marque abaixo quem batizou e quem não batizou para dar o acompanhamento.</div>}
+          <div className="flex flex-wrap gap-2">
+            {[["aguardando", "Aguardando"], ["batizou", "Batizou"], ["nao_batizou", "Não batizou"], ["desistiu", "Desistiu"], ["", "Todos"]].map(([k, l]) =>
+              <button key={k} type="button" className={`gvv-chip ${filter === k ? "on" : ""}`} onClick={() => setFilter(k)}>{l} ({k ? count(k) : people.length})</button>)}
+          </div>
+          {!shown.length ? <p className="txt-muted text-sm">Ninguém nesta lista. Quem o líder marcar no relatório como "optou pelo batismo" aparece aqui.</p> :
+            <ul className="divide-y" style={{ borderColor: "var(--line)" }}>{shown.map((x) => (
+              <li key={x.id} className="py-3 grid gap-2 md:grid-cols-[1fr_auto] items-start">
+                <div className="min-w-0">
+                  <b>{x.full_name}</b> <span className={`gvv-badge ${GVV_BAP_STATUS[x.status][1]}`}>{GVV_BAP_STATUS[x.status][0]}</span>
+                  <p className="text-xs txt-muted">{[!connId && conns[x.connection_id], x.phone, dateOf(x.baptism_date_id) && `batismo ${fmtDate(dateOf(x.baptism_date_id).date)}`, `desde ${fmtDate(x.created_at.slice(0, 10))}`].filter(Boolean).join(" · ")}</p>
+                  <input className="mt-2 w-full text-sm px-3 py-2 rounded-lg" style={{ border: "1px solid var(--line)", background: "var(--surface)" }} placeholder="Acompanhamento (ligou, remarcou, motivo…)" defaultValue={x.followup}
+                    onBlur={(e) => e.target.value !== x.followup && upd(x, { followup: e.target.value })} />
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {x.phone && <a className="gvv-chip" href={`https://wa.me/55${x.phone.replace(/\D/g, "").replace(/^55/, "")}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+                  <button type="button" className="gvv-chip" onClick={() => upd(x, { status: "batizou", baptism_date_id: x.baptism_date_id || lastPast?.id || next?.id || null })}>✓ Batizou</button>
+                  <button type="button" className="gvv-chip" onClick={() => upd(x, { status: "nao_batizou" })}>Não batizou</button>
+                  {x.status !== "aguardando" && <button type="button" className="gvv-chip" onClick={() => upd(x, { status: "aguardando", baptism_date_id: next?.id || null })}>Próximo batismo</button>}
+                  <button type="button" className="gvv-chip" onClick={() => upd(x, { status: "desistiu" })}>Desistiu</button>
+                </div>
+              </li>))}</ul>}
+          {connId && <div className="grid sm:grid-cols-[1fr_180px_auto] gap-3 items-end">
+            <Input label="Adicionar pessoa ao batismo" value={add.full_name} onChange={(e) => setAdd((s) => ({ ...s, full_name: e.target.value }))} />
+            <Input label="WhatsApp" value={add.phone} onChange={(e) => setAdd((s) => ({ ...s, phone: e.target.value }))} />
+            <Button variant="outline" onClick={addPerson}>Adicionar</Button>
+          </div>}
+        </div>
+      );
+    };
+
     /* ID do GVV: rede + número na rede (ex.: JOVENS 03) e número da casa. */
     const gvvIdOf = (h) => `${gvvCatOf(h || {}).short} ${String(h?.network_no ?? "?").padStart(2, "0")} · CASA ${String(h?.house_no ?? "?").padStart(2, "0")}`;
     const GvvHubView = () => {
@@ -2620,6 +2722,7 @@
             {!lists[open].rows.length ? <p className="txt-muted text-sm mt-2">Nada por aqui.</p> :
               <ul className="mt-2 divide-y" style={{ borderColor: "var(--line)" }}>{lists[open].rows.map(([a, b], i) => <li key={i} className="py-2 flex justify-between gap-3 text-sm"><b>{a}</b><span className="txt-muted text-right">{b}</span></li>)}</ul>}
           </div>}
+          <GvvBaptismPanel />
           <div className="grid md:grid-cols-2 gap-4">
             <div className="mm-card p-4">
               <h3 className="font-semibold">Encontros e visitantes por mês</h3>
@@ -3268,8 +3371,12 @@
         const row = { connection_id: conn.id, meeting_date: rep.meeting_date, happened: rep.happened, present_ids: rep.happened ? rep.present : [], visitors: rep.happened ? +rep.visitors || 0 : 0,
           conversions: rep.happened ? +rep.conversions || 0 : 0, conversion_names: rep.happened ? rep.conversion_names : "",
           baptisms: rep.happened ? +rep.baptisms || 0 : 0, baptism_names: rep.happened ? rep.baptism_names : "", prayer_requests: rep.prayer_requests, notes: rep.notes, created_by: me?.id || null };
-        const { error } = await supabase.from("gvv_reports").upsert(row, { onConflict: "connection_id,meeting_date" });
+        const { data: saved, error } = await supabase.from("gvv_reports").upsert(row, { onConflict: "connection_id,meeting_date" }).select("id").maybeSingle();
         if (error) return toast.error(error.message);
+        if (row.baptisms > 0) {
+          const nextB = (await supabase.from("gvv_baptism_dates").select("id").gte("date", today).order("date").limit(1)).data?.[0];
+          for (const p of gvvBapNames(row.baptism_names)) await supabase.from("gvv_baptism_people").insert({ ...p, connection_id: conn.id, report_id: saved?.id || null, baptism_date_id: nextB?.id || null });
+        }
         toast.success("Relatório salvo."); setRep({ meeting_date: today, happened: true, present: [], visitors: 0, conversions: 0, conversion_names: "", baptisms: 0, baptism_names: "", prayer_requests: "", notes: "" }); load();
       };
       const pName = (r) => r ? r.name : "—";
@@ -3295,6 +3402,7 @@
               <div><b>{reports.reduce((a, r) => a + (r.baptisms || 0), 0)}</b><span>optaram pelo batismo</span></div>
             </div>
           </div>
+          <div className="gvv-no-print"><GvvBaptismPanel connId={conn.id} /></div>
           <div className="gvv-people-row">
             <div className="gvv-person-card house"><p className="gvv-role">Anfitrião · casa</p><b>{pName(house)}</b><p>{house?.address || "—"}</p>{wa(house?.phone, house?.name)}</div>
             <div className="gvv-person-card leader"><p className="gvv-role">Líder</p><b>{leader?.id === house?.id ? `${pName(leader)} (o próprio anfitrião)` : pName(leader)}</b><p>{leader?.member_since ? `Membro ${leader.member_since.toLowerCase()}` : ""}</p>{wa(leader?.phone, leader?.name)}</div>
@@ -3368,7 +3476,7 @@
                   </div>
                   {+rep.conversions > 0 && <Input label="Nome de quem aceitou Jesus (e telefone, se tiver)" value={rep.conversion_names} onChange={(e) => setRep((s) => ({ ...s, conversion_names: e.target.value }))} />}
                   <Input label="Quantos optaram pelo batismo? 💧" type="number" min="0" value={rep.baptisms} onChange={(e) => setRep((s) => ({ ...s, baptisms: e.target.value }))} />
-                  {+rep.baptisms > 0 && <Input label="Nome de quem quer se batizar (e telefone, se tiver)" value={rep.baptism_names} onChange={(e) => setRep((s) => ({ ...s, baptism_names: e.target.value }))} />}
+                  {+rep.baptisms > 0 && <Input label="Nome de quem quer se batizar (um por linha ou separados por vírgula, com telefone se tiver)" value={rep.baptism_names} onChange={(e) => setRep((s) => ({ ...s, baptism_names: e.target.value }))} />}
                 </>}
                 <label className="block mt-3 text-sm font-semibold">Como foi o encontro?
                   <textarea className={inputCls + " mt-1 min-h-[80px]"} placeholder="Palavra, louvor, comunhão, o que marcou…" value={rep.notes} onChange={(e) => setRep((s) => ({ ...s, notes: e.target.value }))} /></label>
