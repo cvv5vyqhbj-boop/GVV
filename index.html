@@ -295,6 +295,17 @@
     .gvv-guardian { margin-top: 14px; padding: 14px; border-radius: 14px; border: 1px dashed var(--gvv-lime); }
     .gvv-near-list li.gvv-busy { opacity: .5; filter: grayscale(1); }
     .gvv-near-list li.gvv-busy:hover { opacity: .8; }
+    .gvv-name-link { font: inherit; color: inherit; text-align: left; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+    .gvv-name-link:hover { text-decoration-color: currentColor; }
+    .gvv-hub-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); box-shadow: inset 4px 0 var(--nc, var(--gvv-blue)); }
+    .gvv-hub-row.c-misto { --nc: #2B77E4; } .gvv-hub-row.c-jovens { --nc: #E5225B; } .gvv-hub-row.c-adolescentes { --nc: #8fbf00; } .gvv-hub-row.c-juniores { --nc: #8B2BE2; }
+    .gvv-hub-row b { display: block; font-size: 14.5px; line-height: 1.25; }
+    .gvv-hub-row small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+    .gvv-hub-id { flex: none; font-family: var(--gvv-display); font-size: 15px; letter-spacing: .02em; padding: 6px 10px; border-radius: 10px; background: var(--nc, var(--gvv-blue)); color: #fff; white-space: nowrap; }
+    .gvv-hub-row.c-adolescentes .gvv-hub-id { color: #142000; background: #C1ED28; }
+    .gvv-hub-wa { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px; background: #16a34a; color: #fff !important; font-weight: 700; font-size: 13px; }
+    .gvv-hub-wa:hover { filter: brightness(1.1); }
+    @media (max-width: 640px) { .gvv-hub-row { flex-wrap: wrap; } .gvv-hub-wa span { display: none; } }
     .gvv-link-ok { background: color-mix(in srgb, #ff8a00 14%, transparent); border: 1px solid color-mix(in srgb, #ff8a00 45%, transparent); }
     .gvv-link-free { background: var(--surface-2); border: 1px dashed var(--line); }
     .gvv-chip.gvv-free { border-style: dashed !important; }
@@ -2895,18 +2906,23 @@
       const maxM = Math.max(1, ...perMonth.map((x) => Math.max(x.enc, x.vis)));
       const perNet = GVV_ROSTER_CATS.map((c) => ({ ...c, n: d.conns.filter((x) => (byId[x.host_candidate_id]?.network || "misto") === c.k).length, m: ativos.filter((mb) => (byId[connById[mb.connection_id]?.host_candidate_id]?.network || "misto") === c.k).length }));
       const maxN = Math.max(1, ...perNet.map((x) => x.n));
+      // Cada linha: ID do GVV (cor da rede), nome, detalhe e WhatsApp de quem chamar.
+      const C = (conn, sub, extra = {}) => { const h = byId[conn?.host_candidate_id] || {}, l = byId[conn?.leader_candidate_id];
+        return { id: h.id ? gvvIdOf(h) : "GVV", net: h.network || "misto", name: [h.name, l && l.id !== h.id ? `líder ${l.name.split(" ")[0]}` : null].filter(Boolean).join(" · "),
+          sub, phone: l?.phone || h.phone, who: (l || h).name, ...extra }; };
+      const P = (x, sub) => ({ id: gvvIdOf(x), net: x.network || "misto", name: x.name, sub, phone: x.phone, who: x.name });
       const lists = {
-        novos: { t: "GVVs novos (últimos 30 dias)", rows: novos.map((c) => [tag(c), c.start_date ? `início ${fmtDate(c.start_date)}` : `formado ${fmtDate((c.created_at || "").slice(0, 10))}`]) },
-        enc: { t: "Encontros nos últimos 90 dias", rows: rep90.sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => [connById[x.connection_id] ? tag(connById[x.connection_id]) : "GVV", `${fmtDate(x.meeting_date)} · ${(x.present_ids || []).length} presentes · ${x.visitors || 0} visit.`]) },
-        risco: { t: "Pessoas em risco (faltaram nos 2 últimos encontros)", rows: risco.map((mb) => [mb.full_name, `${connById[mb.connection_id] ? tag(connById[mb.connection_id]) : ""}${mb.phone ? " · " + mb.phone : ""}`]) },
-        sem: { t: "GVVs sem encontro há 30 dias", rows: semEncontro.map((c) => [tag(c), (lastByConn[c.id] || [])[0] ? `último ${fmtDate(lastByConn[c.id][0].meeting_date)}` : "nenhum relatório"]) },
-        jesus: { t: "Aceitaram Jesus nos GVVs", rows: d.reports.filter((x) => x.conversions > 0).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => [connById[x.connection_id] ? tag(connById[x.connection_id]) : "GVV", `${fmtDate(x.meeting_date)} · ${x.conversions}${x.conversion_names ? " · " + x.conversion_names : ""}`]) },
-        batismo: { t: "Optaram pelo batismo nos GVVs", rows: d.reports.filter((x) => x.baptisms > 0).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => [connById[x.connection_id] ? tag(connById[x.connection_id]) : "GVV", `${fmtDate(x.meeting_date)} · ${x.baptisms}${x.baptism_names ? " · " + x.baptism_names : ""}`]) },
-        intSem: { t: "Interessados ainda sem GVV", rows: intSemGvv.map((i) => [i.full_name, [i.phone, i.address].filter(Boolean).join(" · ")]) },
-        casaSem: { t: "Casas sem líder", rows: casasSemLider.map((x) => [`${gvvIdOf(x)} · ${x.name}`, x.neighborhood || ""]) },
-        liderSem: { t: "Líderes sem casa", rows: lideresSemCasa.map((x) => [x.name, [gvvCatOf(x).label, x.neighborhood, x.phone].filter(Boolean).join(" · ")]) },
-        vice: { t: "GVVs sem vice", rows: st.semVice.map((c) => [tag(c), byId[c.host_candidate_id]?.neighborhood || ""]) },
-        agu: { t: "Inscrições aguardando", rows: st.aguardando.map((x) => [x.name, ({ leader: "líder", host: "anfitrião", both: "líder + anfitrião" })[x.kind] || ""]) },
+        novos: { t: "GVVs novos (últimos 30 dias)", rows: novos.map((c) => C(c, c.start_date ? `início ${fmtDate(c.start_date)}` : `formado ${fmtDate((c.created_at || "").slice(0, 10))}`)) },
+        enc: { t: "Encontros nos últimos 90 dias", rows: rep90.sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => C(connById[x.connection_id], `${fmtDate(x.meeting_date)} · ${(x.present_ids || []).length} presentes · ${x.visitors || 0} visitantes`)) },
+        risco: { t: "Pessoas em risco (faltaram nos 2 últimos encontros)", rows: risco.map((mb) => C(connById[mb.connection_id], "faltou nos 2 últimos encontros", { name: mb.full_name, phone: mb.phone, who: mb.full_name })) },
+        sem: { t: "GVVs sem encontro há 30 dias", rows: semEncontro.map((c) => C(c, (lastByConn[c.id] || [])[0] ? `último encontro ${fmtDate(lastByConn[c.id][0].meeting_date)}` : "nenhum relatório ainda")) },
+        jesus: { t: "Aceitaram Jesus nos GVVs", rows: d.reports.filter((x) => x.conversions > 0).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => C(connById[x.connection_id], `${fmtDate(x.meeting_date)} · ${x.conversions} pessoa(s)${x.conversion_names ? " · " + x.conversion_names : ""}`)) },
+        batismo: { t: "Optaram pelo batismo nos GVVs", rows: d.reports.filter((x) => x.baptisms > 0).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => C(connById[x.connection_id], `${fmtDate(x.meeting_date)} · ${x.baptisms} pessoa(s)${x.baptism_names ? " · " + x.baptism_names.split("\n").join(", ") : ""}`)) },
+        intSem: { t: "Interessados ainda sem GVV", rows: intSemGvv.map((i) => ({ id: "INTERESSADO", net: "", name: i.full_name, sub: i.address || "sem endereço", phone: i.phone, who: i.full_name })) },
+        casaSem: { t: "Casas sem líder", rows: casasSemLider.map((x) => P(x, [x.neighborhood, x.availability].filter(Boolean).join(" · "))) },
+        liderSem: { t: "Líderes sem casa", rows: lideresSemCasa.map((x) => ({ ...P(x, [gvvCatOf(x).label, x.neighborhood].filter(Boolean).join(" · ")), id: `LÍDER · ${gvvCatOf(x).short}` })) },
+        vice: { t: "GVVs sem vice", rows: st.semVice.map((c) => C(c, byId[c.host_candidate_id]?.neighborhood || "")) },
+        agu: { t: "Inscrições aguardando", rows: st.aguardando.map((x) => ({ ...P(x, ({ leader: "quer ser líder", host: "quer ser anfitrião", both: "líder + anfitrião" })[x.kind] || ""), id: "AGUARDANDO" })) },
       };
       const Bar = ({ v, max, color }) => <div style={{ height: 8, borderRadius: 4, background: "var(--surface-2)" }}><div style={{ width: `${(v / max) * 100}%`, height: "100%", borderRadius: 4, background: color }} /></div>;
       return (
@@ -2927,10 +2943,16 @@
             {st.aguardando.length > 0 && <S n={st.aguardando.length} l="inscrições aguardando" tone="warn" k="agu" />}
             {st.semVice.length > 0 && <S n={st.semVice.length} l="GVVs sem vice" tone="warn" k="vice" />}
           </div>
-          {open && <div className="mm-card p-4">
-            <div className="flex justify-between items-center gap-3"><h3 className="font-semibold">{lists[open].t}</h3><button type="button" className="txt-muted text-sm" onClick={() => setOpen("")}>Fechar ✕</button></div>
+          {open && <div className="mm-card p-4 gvv-hub-list">
+            <div className="flex justify-between items-center gap-3"><h3 className="font-semibold text-lg">{lists[open].t} <span className="txt-muted text-sm">· {lists[open].rows.length}</span></h3><button type="button" className="txt-muted text-sm" onClick={() => setOpen("")}>Fechar ✕</button></div>
             {!lists[open].rows.length ? <p className="txt-muted text-sm mt-2">Nada por aqui.</p> :
-              <ul className="mt-2 divide-y" style={{ borderColor: "var(--line)" }}>{lists[open].rows.map(([a, b], i) => <li key={i} className="py-2 flex justify-between gap-3 text-sm"><b>{a}</b><span className="txt-muted text-right">{b}</span></li>)}</ul>}
+              <ul className="mt-3 grid gap-2 md:grid-cols-2">{lists[open].rows.map((r, i) => (
+                <li key={i} className={`gvv-hub-row ${r.net ? "c-" + r.net : ""}`}>
+                  <span className="gvv-hub-id">{r.id}</span>
+                  <div className="min-w-0 flex-1"><b>{r.name}</b>{r.sub && <small>{r.sub}</small>}</div>
+                  {r.phone ? <a className="gvv-hub-wa" href={waLink(r.phone, `Olá, ${(r.who || "").split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" title={`WhatsApp de ${r.who}`}><IWhats className="w-5 h-5" /><span>WhatsApp</span></a>
+                    : <span className="text-xs txt-faint">sem WhatsApp</span>}
+                </li>))}</ul>}
           </div>}
           <GvvBaptismPanel />
           <div className="grid md:grid-cols-2 gap-4">
@@ -3167,11 +3189,12 @@
                 {!part.length ? <p className="p-4 text-sm txt-muted">Ninguém nesta lista.</p> : (
                   <div className="overflow-x-auto">
                     <table className="gvv-table">
-                      <thead><tr><th>Nome</th><th>WhatsApp</th><th>Idade</th><th>Membro há</th>{kind.k !== "leader" && <th>Dias · turno</th>}<th>Bairro · cidade</th><th>Endereço</th><th>Situação</th><th>Conferir</th><th className="gvv-no-print"></th></tr></thead>
+                      <thead><tr><th>Nome</th><th>WhatsApp</th><th>Idade</th><th>Membro há</th>{kind.k !== "leader" && <th>Dias · turno</th>}<th>Bairro · cidade</th><th>Endereço</th><th>Situação</th><th>Conferir</th></tr></thead>
                       <tbody>
                         {part.map((r) => (
                           <tr key={r.id} className={`c-${gvvCatOf(r).k} ${(r.review_notes || "").trim() ? "warn" : ""}`}>
-                            <td className="name" data-label="Nome">{r.name}{r.audience && cat !== "sem" && /,/.test(r.audience) && <small>{r.audience}</small>}</td>
+                            <td className="name" data-label="Nome"><button type="button" className="gvv-name-link" onClick={() => setOpen({ r, tag: tagOf[r.id], kind: GVV_ROSTER_KINDS.find((k) => k.k === r.kind)?.label || "", cat: gvvCatOf(r).label })}>{r.name}</button>{r.audience && cat !== "sem" && /,/.test(r.audience) && <small>{r.audience}</small>}
+                              <div className="flex flex-wrap gap-2 mt-2 gvv-no-print"><Button size="sm" className="whitespace-nowrap" onClick={() => setOpen({ r, tag: tagOf[r.id], kind: GVV_ROSTER_KINDS.find((k) => k.k === r.kind)?.label || "", cat: gvvCatOf(r).label })}>Ver detalhes</Button><Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setEditing(r)}>✎ Editar</Button></div></td>
                             <td data-label="WhatsApp">{r.phone ? <a href={waLink(r.phone, `Olá, ${r.name.split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold whitespace-nowrap">{r.phone}</a> : "—"}</td>
                             <td className="tnum" data-label="Idade">{gvvAge(r.birth_date) || "—"}</td>
                             <td data-label="Membro há">{r.member_since || "—"}</td>
@@ -3180,7 +3203,6 @@
                             <td className="addr" data-label="Endereço">{addr(r) || <span className="txt-faint">Sem endereço</span>}</td>
                             <td data-label="Situação">{GVV_STATUS_LABEL[status(r)] || status(r)}</td>
                             <td className="note" data-label="Conferir">{(r.review_notes || "").trim() ? <>⚠ {r.review_notes}</> : <span className="txt-faint">OK</span>}</td>
-                            <td className="gvv-no-print"><div className="flex gap-2"><Button size="sm" className="whitespace-nowrap" onClick={() => setOpen({ r, tag: tagOf[r.id], kind: GVV_ROSTER_KINDS.find((k) => k.k === r.kind)?.label || "", cat: gvvCatOf(r).label })}>Ver detalhes</Button><Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setEditing(r)}>✎ Editar</Button></div></td>
                           </tr>
                         ))}
                       </tbody>
