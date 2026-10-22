@@ -267,6 +267,8 @@
 
     .gvv-detail-stats > div.bap { background: linear-gradient(150deg, #2B77E4, #1a4fa0) !important; border-color: #2B77E4 !important; color: #fff; }
     .gvv-detail-stats > div.bap span { color: rgba(255,255,255,.85) !important; }
+    .gvv-chip.gvv-free { border-style: dashed !important; }
+    .gvv-chip.gvv-free.on { background: #ff8a00 !important; border-color: #ff8a00 !important; color: #fff !important; border-style: solid !important; }
     .gvv-report .gvv-rstep { padding: 14px 0; border-top: 1px solid var(--line); display: grid; gap: 10px; }
     .gvv-report .gvv-rstep:first-of-type { border-top: 0; }
     .gvv-rstep-h { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 16px; }
@@ -4025,8 +4027,11 @@
       const sel = (houses.find((h) => h.id === selId && filteredOk(h))) || null;
       const selPt = sel ? gvvPoint(sel) : null;
       const isArch = kindF === "archived";
-      const isLeaders = kindF === "leader" || isArch;
-      const src = isArch ? archived : kindF === "leader" ? leaders.filter((l) => l.kind === "leader") : houses;
+      const isLeaders = kindF === "leader" || kindF === "freeLeaders" || isArch;
+      const inAnyGvv = (id) => conns.some((c) => [c.leader_candidate_id, c.host_candidate_id, c.vice_candidate_id].includes(id));
+      const freeHousesList = houses.filter((h) => !inAnyGvv(h.id));
+      const freeLeadersList = leaders.filter((l) => l.kind === "leader" && !inAnyGvv(l.id));
+      const src = isArch ? archived : kindF === "leader" ? leaders.filter((l) => l.kind === "leader") : kindF === "freeLeaders" ? freeLeadersList : kindF === "freeHouses" ? freeHousesList : houses;
       const [leadSel, setLeadSel] = useState(null);
       const [editRow, setEditRow] = useState(null);
       const [picked, setPicked] = useState([]);
@@ -4040,7 +4045,7 @@
         for (const id of ids) { const { error } = await supabase.rpc("gvv_delete_candidate", { p_id: id }); if (error) return toast.error(error.message); }
         toast.success(`${ids.length} excluído(s).`); setLeadSel(null); setPicked([]); onChanged?.();
       };
-      const filteredHouses = src.filter((h) => (!cat || gvvCatOf(h).k === cat) && (!kindF || isLeaders || h.kind === kindF) && (isLeaders || !dayF || gvvDaysOf(h.days || h.availability).includes(dayF)) && (!q.trim() || norm([tagOf[h.id], tagOf["net:" + h.id], h.name, h.neighborhood, h.city].join(" ")).includes(norm(q.trim()))));
+      const filteredHouses = src.filter((h) => (!cat || gvvCatOf(h).k === cat) && (!kindF || isLeaders || kindF === "freeHouses" || h.kind === kindF) && (isLeaders || !dayF || gvvDaysOf(h.days || h.availability).includes(dayF)) && (!q.trim() || norm([tagOf[h.id], tagOf["net:" + h.id], h.name, h.neighborhood, h.city].join(" ")).includes(norm(q.trim()))));
       const pages = Math.max(1, Math.ceil(filteredHouses.length / PER));
       const pg = Math.min(page, pages - 1);
       const shownHouses = filteredHouses.slice(pg * PER, pg * PER + PER);
@@ -4133,13 +4138,16 @@
             <div className="flex flex-wrap gap-2 pb-1">
               {[["", "Todas"], ["host", "Só anfitrião"], ["both", "Líder + anfitrião"]].map(([k, l]) => <button key={k} onClick={() => setKindF(k)} className={`gvv-chip kind ${kindF === k ? "on" : ""}`}>{l} · {houses.filter((h) => !k || h.kind === k).length}</button>)}
               <button onClick={() => setKindF("leader")} className={`gvv-chip kind ${kindF === "leader" ? "on" : ""}`}>Só líderes · {leaders.filter((l) => l.kind === "leader").length}</button>
+              <span className="w-px bg-[var(--line)] mx-1" />
+              <button onClick={() => setKindF("freeHouses")} className={`gvv-chip kind gvv-free ${kindF === "freeHouses" ? "on" : ""}`}>🏠 Casas sem GVV · {freeHousesList.length}</button>
+              <button onClick={() => setKindF("freeLeaders")} className={`gvv-chip kind gvv-free ${kindF === "freeLeaders" ? "on" : ""}`}>🙋 Líderes sem GVV · {freeLeadersList.length}</button>
               {archived.length > 0 && <button onClick={() => setKindF("archived")} className={`gvv-chip kind ${isArch ? "on" : ""}`}>Arquivados · {archived.length}</button>}
               <span className="w-px bg-[var(--line)] mx-1" />
               <button onClick={() => setCat("")} className={`gvv-chip ${!cat ? "on" : ""}`}>Todas as redes</button>
               {GVV_ROSTER_CATS.map((c) => <button key={c.k} onClick={() => setCat(c.k)} className={`gvv-chip c-${c.k} ${cat === c.k ? "on" : ""}`}>{c.label} · {src.filter((h) => gvvCatOf(h) === c).length}</button>)}
             </div>
           </div>
-          <GvvPrintHead title={isLeaders ? "Líderes" : "Casas"} sub={[{ "": "Todas", host: "Só anfitrião", both: "Líder + anfitrião", leader: "Só líderes", archived: "Arquivados" }[kindF], GVV_ROSTER_CATS.find((c) => c.k === cat)?.label || "Todas as redes", `${filteredHouses.length} ${isLeaders ? "líderes" : "casas"}`].join(" · ")} />
+          <GvvPrintHead title={isLeaders ? "Líderes" : "Casas"} sub={[{ "": "Todas", host: "Só anfitrião", both: "Líder + anfitrião", leader: "Só líderes", archived: "Arquivados", freeHouses: "Casas sem GVV", freeLeaders: "Líderes sem GVV" }[kindF], GVV_ROSTER_CATS.find((c) => c.k === cat)?.label || "Todas as redes", `${filteredHouses.length} ${isLeaders ? "líderes" : "casas"}`].join(" · ")} />
           {!isLeaders && <GvvDayFilter value={dayF} onChange={setDayF} counts={Object.fromEntries(GVV_WEEK.map(([k]) => [k, houses.filter((h) => gvvDaysOf(h.days || h.availability).includes(k)).length]))} />}
           <div className="gvv-houses">
             {shownHouses.map((h) => {
