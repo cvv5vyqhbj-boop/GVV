@@ -267,7 +267,34 @@
 
     .gvv-detail-stats > div.bap { background: linear-gradient(150deg, #2B77E4, #1a4fa0) !important; border-color: #2B77E4 !important; color: #fff; }
     .gvv-detail-stats > div.bap span { color: rgba(255,255,255,.85) !important; }
+    /* iPad e celular: listas de membros e tabelas viram cartões */
+    .gvv-mrow { flex-wrap: wrap; }
+    .gvv-mrow > .min-w-0 { flex: 1 1 180px; }
+    .gvv-mact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
+    @media (max-width: 1100px) {
+      .gvv-mact { width: 100%; margin-left: 44px; }
+      .gvv-mact .gvv-mini { padding: 8px 12px; font-size: 13px; }
+    }
+    @media (max-width: 900px) {
+      .gvv-table thead { display: none; }
+      .gvv-table, .gvv-table tbody { display: block; width: 100%; }
+      .gvv-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+      .gvv-table td { display: block; padding: 0 !important; border: 0 !important; min-width: 0; white-space: normal !important; }
+      .gvv-table td[data-label]::before { content: attr(data-label); display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+      .gvv-table td.name, .gvv-table td.addr, .gvv-table td.note, .gvv-table td:last-child { grid-column: 1 / -1; }
+      .gvv-table td.name { font-size: 16px; }
+      .gvv-table td.name::before { display: none !important; }
+      html[data-color=on] .gvv-table tr[class*="c-"] { background: color-mix(in srgb, var(--nc) 13%, transparent); box-shadow: inset 4px 0 var(--nc); }
+      html[data-color=on] .gvv-table tr[class*="c-"] td { background: transparent !important; box-shadow: none !important; }
+      .gvv-detail-head { padding: 16px !important; }
+      .gvv-detail-stats { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); width: 100%; gap: 8px !important; }
+      .gvv-detail-stats > div { min-width: 0 !important; }
+      .gvv-tabs { flex-wrap: nowrap !important; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .gvv-tabs button { white-space: nowrap; flex: 0 0 auto; }
+    }
     .gvv-guardian { margin-top: 14px; padding: 14px; border-radius: 14px; border: 1px dashed var(--gvv-lime); }
+    .gvv-near-list li.gvv-busy { opacity: .5; filter: grayscale(1); }
+    .gvv-near-list li.gvv-busy:hover { opacity: .8; }
     .gvv-link-ok { background: color-mix(in srgb, #ff8a00 14%, transparent); border: 1px solid color-mix(in srgb, #ff8a00 45%, transparent); }
     .gvv-link-free { background: var(--surface-2); border: 1px dashed var(--line); }
     .gvv-chip.gvv-free { border-style: dashed !important; }
@@ -1125,7 +1152,7 @@
     .gvv-tabs { display:flex; flex-wrap:wrap; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
     .gvv-tabs button { padding: 9px 16px; border-radius: 10px; font-weight: 800; font-size: 14px; color: var(--muted); }
     .gvv-tabs button.on { background: var(--gvv-blue); color: #fff; }
-    .gvv-detail-grid { display:grid; gap: 14px; grid-template-columns: 1fr; } @media (min-width: 1000px) { .gvv-detail-grid { grid-template-columns: 1.2fr 1fr; } }
+    .gvv-detail-grid { display:grid; gap: 14px; grid-template-columns: 1fr; } @media (min-width: 1200px) { .gvv-detail-grid { grid-template-columns: 1.2fr 1fr; } }
     .gvv-h3 { font-family: var(--gvv-display); text-transform: uppercase; font-size: 20px; margin-bottom: 10px; }
     .gvv-mlist { display:grid; gap: 6px; } .gvv-mlist li { display:flex; align-items:center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
     .gvv-mlist li.off { opacity: .55; } .gvv-mlist b { display:block; font-size: 14px; } .gvv-mlist small { font-size: 12px; color: var(--muted); }
@@ -2258,6 +2285,19 @@
       return 2 * R * Math.asin(Math.sqrt(h));
     };
     const gvvFmtKm = (km) => km < 1 ? `${Math.round(km * 1000 / 50) * 50} m` : `${km.toFixed(1).replace(".", ",")} km`;
+    /* Endereço digitado à mão (ex.: "Rua X 123 - Boqueirão"): tenta rua+número, só a rua e o bairro. */
+    const gvvLocateLoose = async (address, number) => {
+      const raw = String(address || "").trim(), num = String(number || "").trim();
+      if (!raw && !num) throw new Error("sem endereço");
+      if (/^\d{5}-?\d{3}$/.test(raw.replace(/\s/g, ""))) return gvvLocate(raw);
+      const parts = raw.split(/\s+[-–]\s+|,|\//).map((x) => x.trim()).filter(Boolean);
+      const street = parts[0] || raw, bairro = parts.slice(1).find((x) => !/^\d+$/.test(x) && !/curitiba|pr$/i.test(x)) || "";
+      const tries = [[street, num, bairro].filter(Boolean).join(", "), [street, bairro].filter(Boolean).join(", "), street, bairro].filter((x, i, a) => x && a.indexOf(x) === i);
+      for (const t of tries) {
+        try { return await gvvLocate(t); } catch (e) { await new Promise((r) => setTimeout(r, 1100)); }
+      }
+      throw new Error("não achado");
+    };
     const gvvLocate = async (text) => {
       const digits = text.replace(/\D/g, "");
       let q = text.trim();
@@ -2811,13 +2851,14 @@
       const [open, setOpen] = useState("");
       const [mapCells, setMapCells] = useState(null);
       useEffect(() => { (async () => {
-        const [c, k, m, r] = await Promise.all([
+        const [c, k, m, r, it] = await Promise.all([
           supabase.from("gvv_connections").select("*"),
           supabase.from("gvv_candidates").select("id,name,kind,leader_status,host_status,house_no,network,network_no,neighborhood,phone"),
-          supabase.from("gvv_members").select("id,full_name,phone,status,connection_id,joined_at,kind"),
+          supabase.from("gvv_members").select("id,full_name,phone,status,connection_id,joined_at,kind,interest_id"),
           supabase.from("gvv_reports").select("*"),
+          supabase.from("gvv_interests").select("id,full_name,phone,address,status"),
         ]);
-        setD({ conns: c.data || [], cands: k.data || [], members: m.data || [], reports: r.data || [] });
+        setD({ conns: c.data || [], cands: k.data || [], members: m.data || [], reports: r.data || [], interests: it.data || [] });
       })(); }, []);
       useEffect(() => { supabase.rpc("gvv_map_overview").then(({ data }) => { const g = (data || []).filter((x) => x.kind === "gvv"); setMapCells(g); gvvFillGeo(g).then(setMapCells); }); }, []);
       const S = ({ n, l, tone, k }) => <button type="button" onClick={() => k && setOpen(open === k ? "" : k)} aria-pressed={open === k}
@@ -2835,6 +2876,10 @@
       d.reports.filter((x) => x.happened).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).forEach((x) => { (lastByConn[x.connection_id] = lastByConn[x.connection_id] || []).push(x); });
       const risco = ativos.filter((mb) => { const last = (lastByConn[mb.connection_id] || []).filter((x) => !mb.joined_at || x.meeting_date >= mb.joined_at).slice(0, 2);
         return last.length === 2 && last.every((x) => !(x.present_ids || []).includes(mb.id)); });
+      const inGvv = new Set(d.conns.flatMap((c) => [c.leader_candidate_id, c.host_candidate_id, c.vice_candidate_id]).filter(Boolean));
+      const intSemGvv = d.interests.filter((i) => ["novo", "contatado"].includes(i.status) && !d.members.some((mb) => mb.interest_id === i.id));
+      const casasSemLider = d.cands.filter((x) => x.kind !== "leader" && x.host_status === "approved" && (!inGvv.has(x.id) || d.conns.some((c) => c.host_candidate_id === x.id && !c.leader_candidate_id)));
+      const lideresSemCasa = d.cands.filter((x) => x.kind === "leader" && x.leader_status === "approved" && !inGvv.has(x.id));
       const semEncontro = d.conns.filter((c) => !(lastByConn[c.id] || []).some((x) => x.meeting_date >= ago(30)));
       const st = {
         gvvs: d.conns.length, semVice: d.conns.filter((x) => !x.vice_candidate_id),
@@ -2857,6 +2902,9 @@
         sem: { t: "GVVs sem encontro há 30 dias", rows: semEncontro.map((c) => [tag(c), (lastByConn[c.id] || [])[0] ? `último ${fmtDate(lastByConn[c.id][0].meeting_date)}` : "nenhum relatório"]) },
         jesus: { t: "Aceitaram Jesus nos GVVs", rows: d.reports.filter((x) => x.conversions > 0).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => [connById[x.connection_id] ? tag(connById[x.connection_id]) : "GVV", `${fmtDate(x.meeting_date)} · ${x.conversions}${x.conversion_names ? " · " + x.conversion_names : ""}`]) },
         batismo: { t: "Optaram pelo batismo nos GVVs", rows: d.reports.filter((x) => x.baptisms > 0).sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).map((x) => [connById[x.connection_id] ? tag(connById[x.connection_id]) : "GVV", `${fmtDate(x.meeting_date)} · ${x.baptisms}${x.baptism_names ? " · " + x.baptism_names : ""}`]) },
+        intSem: { t: "Interessados ainda sem GVV", rows: intSemGvv.map((i) => [i.full_name, [i.phone, i.address].filter(Boolean).join(" · ")]) },
+        casaSem: { t: "Casas sem líder", rows: casasSemLider.map((x) => [`${gvvIdOf(x)} · ${x.name}`, x.neighborhood || ""]) },
+        liderSem: { t: "Líderes sem casa", rows: lideresSemCasa.map((x) => [x.name, [gvvCatOf(x).label, x.neighborhood, x.phone].filter(Boolean).join(" · ")]) },
         vice: { t: "GVVs sem vice", rows: st.semVice.map((c) => [tag(c), byId[c.host_candidate_id]?.neighborhood || ""]) },
         agu: { t: "Inscrições aguardando", rows: st.aguardando.map((x) => [x.name, ({ leader: "líder", host: "anfitrião", both: "líder + anfitrião" })[x.kind] || ""]) },
       };
@@ -2873,6 +2921,9 @@
             <S n={ativos.length} l="membros ativos" /><S n={st.casas} l="casas aprovadas" /><S n={st.lideres} l="líderes aprovados" />
             <S n={st.relMes} l="relatórios no mês" /><S n={st.jesus} l="aceitaram Jesus no GVV" tone="lime" k="jesus" /><S n={st.batismo} l="optaram pelo batismo no GVV" tone="lime" k="batismo" />
             <S n={semEncontro.length} l="sem encontro há 30 dias" tone={semEncontro.length ? "warn" : ""} k="sem" />
+            <S n={intSemGvv.length} l="interessados sem GVV" tone={intSemGvv.length ? "warn" : ""} k="intSem" />
+            <S n={casasSemLider.length} l="casas sem líder" tone={casasSemLider.length ? "warn" : ""} k="casaSem" />
+            <S n={lideresSemCasa.length} l="líderes sem casa" tone={lideresSemCasa.length ? "warn" : ""} k="liderSem" />
             {st.aguardando.length > 0 && <S n={st.aguardando.length} l="inscrições aguardando" tone="warn" k="agu" />}
             {st.semVice.length > 0 && <S n={st.semVice.length} l="GVVs sem vice" tone="warn" k="vice" />}
           </div>
@@ -3120,15 +3171,15 @@
                       <tbody>
                         {part.map((r) => (
                           <tr key={r.id} className={`c-${gvvCatOf(r).k} ${(r.review_notes || "").trim() ? "warn" : ""}`}>
-                            <td className="name">{r.name}{r.audience && cat !== "sem" && /,/.test(r.audience) && <small>{r.audience}</small>}</td>
-                            <td>{r.phone ? <a href={waLink(r.phone, `Olá, ${r.name.split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold whitespace-nowrap">{r.phone}</a> : "—"}</td>
-                            <td className="tnum">{gvvAge(r.birth_date) || "—"}</td>
-                            <td>{r.member_since || "—"}</td>
-                            {kind.k !== "leader" && <td>{r.availability || "—"}</td>}
-                            <td>{[r.neighborhood, r.city].filter(Boolean).join(" · ") || "—"}</td>
-                            <td className="addr">{addr(r) || <span className="txt-faint">Sem endereço</span>}</td>
-                            <td>{GVV_STATUS_LABEL[status(r)] || status(r)}</td>
-                            <td className="note">{(r.review_notes || "").trim() ? <>⚠ {r.review_notes}</> : <span className="txt-faint">OK</span>}</td>
+                            <td className="name" data-label="Nome">{r.name}{r.audience && cat !== "sem" && /,/.test(r.audience) && <small>{r.audience}</small>}</td>
+                            <td data-label="WhatsApp">{r.phone ? <a href={waLink(r.phone, `Olá, ${r.name.split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold whitespace-nowrap">{r.phone}</a> : "—"}</td>
+                            <td className="tnum" data-label="Idade">{gvvAge(r.birth_date) || "—"}</td>
+                            <td data-label="Membro há">{r.member_since || "—"}</td>
+                            {kind.k !== "leader" && <td data-label="Dias · turno">{r.availability || "—"}</td>}
+                            <td data-label="Bairro">{[r.neighborhood, r.city].filter(Boolean).join(" · ") || "—"}</td>
+                            <td className="addr" data-label="Endereço">{addr(r) || <span className="txt-faint">Sem endereço</span>}</td>
+                            <td data-label="Situação">{GVV_STATUS_LABEL[status(r)] || status(r)}</td>
+                            <td className="note" data-label="Conferir">{(r.review_notes || "").trim() ? <>⚠ {r.review_notes}</> : <span className="txt-faint">OK</span>}</td>
                             <td className="gvv-no-print"><div className="flex gap-2"><Button size="sm" className="whitespace-nowrap" onClick={() => setOpen({ r, tag: tagOf[r.id], kind: GVV_ROSTER_KINDS.find((k) => k.k === r.kind)?.label || "", cat: gvvCatOf(r).label })}>Ver detalhes</Button><Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setEditing(r)}>✎ Editar</Button></div></td>
                           </tr>
                         ))}
@@ -3200,7 +3251,7 @@
       const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const [detail, setDetail] = useState(null);
       const [dayF, setDayF] = useState("");
-      const items = (conns || []).map((c, i) => ({ c, n: i + 1, house: byId[c.host_candidate_id], leader: byId[c.leader_candidate_id], vice: byId[c.vice_candidate_id] })).filter((x) => x.house && x.leader);
+      const items = (conns || []).map((c, i) => ({ c, n: i + 1, house: byId[c.host_candidate_id], leader: byId[c.leader_candidate_id] || { id: "", name: "Sem líder", missing: true }, vice: byId[c.vice_candidate_id] })).filter((x) => x.house);
       const dayOf = (x) => gvvDaysOf(x.c.meeting_day || x.house.days || x.house.availability);
       const filtered = items.filter((x) => (!dayF || dayOf(x).includes(dayF)) && (!cat || gvvCatOf(x.house).k === cat) && (!q.trim() || norm([x.house.name, x.leader.name, tagOf[x.house.id], x.house.neighborhood].join(" ")).includes(norm(q.trim()))));
       const PER = printing ? 9999 : 8, pages = Math.max(1, Math.ceil(filtered.length / PER)), pg = Math.min(page, pages - 1);
@@ -3254,7 +3305,7 @@
                 <div key={x.c.id} role="button" tabIndex={0} onClick={() => setSelId(x.c.id)} onKeyDown={(e) => e.key === "Enter" && setSelId(x.c.id)} style={{ cursor: "pointer" }} className={`gvv-house c-${c.k} ${sel?.c.id === x.c.id ? "on" : ""} done`}>
                   <span className="gvv-house-top"><span className="gvv-house-no" data-k="CASA">{String(tagOf[x.house.id] || "").replace("CASA ", "")}</span><span className={`gvv-cat-pill c-${c.k}`}>{tagOf["net:" + x.house.id] || c.label.split(" /")[0]}</span></span>
                   <span className="gvv-conn-line"><small>Casa · anfitrião</small>{x.house.name}</span>
-                  <span className="gvv-conn-line"><small>Líder</small>{x.leader.id === x.house.id ? "o próprio anfitrião" : x.leader.name}</span>
+                  <span className="gvv-conn-line"><small>Líder</small>{x.leader.missing ? <i className="txt-faint">sem líder</i> : x.leader.id === x.house.id ? "o próprio anfitrião" : x.leader.name}</span>
                   <span className="gvv-conn-line"><small>Vice</small>{x.vice ? x.vice.name : <i className="txt-faint">a definir</i>}</span>
                   <span className="gvv-house-foot">{x.house.neighborhood && <span className="gvv-badge">{x.house.neighborhood}</span>}</span>
                   <Button size="sm" className="mt-2 w-full gvv-no-print" onClick={(e) => { e.stopPropagation(); setDetail(x.c.id); }}>Ver detalhes</Button>
@@ -3665,7 +3716,7 @@
       const removeMember = async (m) => { if (!confirm(`Tirar ${m.full_name} deste GVV?`)) return; const { error } = await supabase.from("gvv_members").delete().eq("id", m.id); if (error) return toast.error(error.message); load(); };
       const [leaderId, setLeaderId] = useState(conn.leader_candidate_id);
       // Interessadas: localiza o endereço (uma por segundo, guardado no aparelho) para mostrar a distância até a casa.
-      const [iGeo, setIGeo] = useState(() => { try { return JSON.parse(localStorage.getItem("gvv_interest_geo") || "{}"); } catch (e) { return {}; } });
+      const [iGeo, setIGeo] = useState(() => { try { return JSON.parse(localStorage.getItem("gvv_interest_geo2") || "{}"); } catch (e) { return {}; } });
       useEffect(() => {
         if (tab !== "membros" || !interests.length) return;
         let stop = false;
@@ -3674,11 +3725,10 @@
           for (const i of interests) {
             if (stop) break;
             if (i.id in cache || (i.lat != null && i.lng != null)) continue;
-            const q = [i.address, i.number].filter(Boolean).join(", ");
-            if (!q.trim()) { cache[i.id] = null; continue; }
-            try { const g = await gvvLocate(q); cache[i.id] = { lat: g.lat, lng: g.lng }; } catch (e) { cache[i.id] = null; }
+            if (!String(i.address || "").trim()) { cache[i.id] = null; continue; }
+            try { const g = await gvvLocateLoose(i.address, i.number); cache[i.id] = { lat: g.lat, lng: g.lng }; } catch (e) { cache[i.id] = null; }
             if (stop) break;
-            setIGeo({ ...cache }); try { localStorage.setItem("gvv_interest_geo", JSON.stringify(cache)); } catch (e) {}
+            setIGeo({ ...cache }); try { localStorage.setItem("gvv_interest_geo2", JSON.stringify(cache)); } catch (e) {}
             await new Promise((r) => setTimeout(r, 1100));
           }
         })();
@@ -3688,9 +3738,10 @@
       useEffect(() => { setSwapTo(swap === "leader" ? conn.leader_candidate_id : swap === "vice" ? (conn.vice_candidate_id || "") : ""); }, [swap]);
       const applySwap = async () => {
         if (swap === "leader") {
-          const { error } = await supabase.rpc("gvv_set_leader", { p_conn: conn.id, p_leader: swapTo });
-          if (error) return toast.error(error.message);
-          setLeaderId(swapTo); toast.success("Líder trocado.");
+          if (!swapTo && !confirm("Deixar este GVV sem líder?")) return;
+          const { error } = await supabase.rpc("gvv_set_leader", { p_conn: conn.id, p_leader: swapTo || null });
+          if (error) return toast.error(/null value|not-null/i.test(error.message) ? "Rode no Supabase o SQL gvv-sem-lider-2026-10-22.sql." : error.message);
+          setLeaderId(swapTo); toast.success(swapTo ? "Líder trocado." : "GVV ficou sem líder.");
         } else {
           const { error } = await supabase.rpc("gvv_update_group", { p_conn: conn.id, p_vice: swapTo || null, p_day: conn.meeting_day || "", p_time: conn.meeting_time || "", p_start: conn.start_date || null });
           if (error) return toast.error(error.message);
@@ -3699,8 +3750,9 @@
         setSwap(""); onChanged?.();
       };
       const saveGroup = async () => {
-        if (!isLeaderView && leaderId && leaderId !== conn.leader_candidate_id) {
-          const { error: eL } = await supabase.rpc("gvv_set_leader", { p_conn: conn.id, p_leader: leaderId });
+        if (!isLeaderView && (leaderId || null) !== (conn.leader_candidate_id || null)) {
+          if (!leaderId && !confirm("Deixar este GVV sem líder?")) return;
+          const { error: eL } = await supabase.rpc("gvv_set_leader", { p_conn: conn.id, p_leader: leaderId || null });
           if (eL) return toast.error(eL.message);
         }
         const { error } = await supabase.rpc("gvv_update_group", { p_conn: conn.id, p_vice: vice || null, p_day: day, p_time: time, p_start: start || null });
@@ -3724,6 +3776,10 @@
       const pName = (r) => r ? r.name : "—";
       const wa = (phone, name) => phone ? <a href={waLink(phone, `Olá, ${(name || "").split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="gvv-wa"><IWhats className="w-4 h-4" /> {phone}</a> : <span className="txt-faint">—</span>;
       const freeLeaders = leaders.filter((l) => l.id === conn.vice_candidate_id || (!usedIds.has(l.id) && l.id !== conn.leader_candidate_id && l.id !== conn.host_candidate_id));
+      const mine = [conn.leader_candidate_id, conn.vice_candidate_id, conn.host_candidate_id];
+      const busyMap = Object.fromEntries(leaders.filter((l) => usedIds.has(l.id) && !mine.includes(l.id)).map((l) => [l.id, "em outro GVV"]));
+      const pool = leaders.filter((l) => l.id !== conn.host_candidate_id);
+      const leaderOpts = [...(house && house.kind === "both" ? [house] : []), ...pool].filter((l, i, a) => a.findIndex((x) => x.id === l.id) === i);
       const housePt = house ? gvvPoint(house) : null;
       const kmOf = (i) => { const g = iGeo[i.id] || (i.lat != null && i.lng != null ? { lat: +i.lat, lng: +i.lng } : null); return g && housePt ? gvvKm(housePt, g) : null; };
       const shownInterests = interests.filter((i) => !qi.trim() || norm([i.full_name, i.phone, i.address].join(" ")).includes(norm(qi.trim())))
@@ -3752,7 +3808,11 @@
             <div className="gvv-person-card house"><p className="gvv-role">Anfitrião · casa</p><b>{pName(house)}</b><p>{house?.address || "—"}</p>{wa(house?.phone, house?.name)}
               {!isLeaderView && house && <div className="flex gap-2 mt-2 gvv-no-print"><Button size="sm" variant="outline" onClick={() => setEditP(house)}>✎ Editar</Button></div>}</div>
             <div className="gvv-person-card leader"><p className="gvv-role">Líder</p><b>{leader?.id === house?.id ? `${pName(leader)} (o próprio anfitrião)` : pName(leader)}</b><p>{leader?.member_since ? `Membro ${leader.member_since.toLowerCase()}` : ""}</p>{wa(leader?.phone, leader?.name)}
-              {!isLeaderView && <div className="flex gap-2 mt-2 gvv-no-print"><Button size="sm" onClick={() => setSwap("leader")}>⇄ Trocar líder</Button>{leader && <Button size="sm" variant="outline" onClick={() => setEditP(leader)}>✎ Editar</Button>}</div>}</div>
+              {!isLeaderView && <div className="flex flex-wrap gap-2 mt-2 gvv-no-print"><Button size="sm" onClick={() => setSwap("leader")}>{leader ? "⇄ Trocar líder" : "+ Escolher líder"}</Button>{leader && <Button size="sm" variant="outline" onClick={() => setEditP(leader)}>✎ Editar</Button>}
+                {leader && <Button size="sm" variant="outline" onClick={async () => { if (!confirm(`Tirar ${leader.name.split(" ")[0]} da liderança? O GVV fica sem líder até você escolher outro.`)) return;
+                  const { error } = await supabase.rpc("gvv_set_leader", { p_conn: conn.id, p_leader: null });
+                  if (error) return toast.error(/null value|not-null/i.test(error.message) ? "Rode no Supabase o SQL gvv-sem-lider-2026-10-22.sql." : error.message);
+                  setLeaderId(""); toast.success("GVV ficou sem líder."); onChanged?.(); }}>Tirar líder</Button>}</div>}</div>
             <div className={`gvv-person-card vice ${viceP ? "" : "empty"}`}><p className="gvv-role">Vice-líder</p><b>{viceP ? viceP.name : "Ainda não definido"}</b><p>{viceP ? (viceP.member_since ? `Membro ${viceP.member_since.toLowerCase()}` : "") : "Todo GVV precisa de um vice."}</p>{viceP && wa(viceP.phone, viceP.name)}
               {!isLeaderView && <div className="flex gap-2 mt-2 gvv-no-print"><Button size="sm" onClick={() => setSwap("vice")}>{viceP ? "⇄ Trocar vice" : "+ Adicionar vice"}</Button>{viceP && <Button size="sm" variant="outline" onClick={() => setEditP(viceP)}>✎ Editar</Button>}</div>}</div>
           </div>}
@@ -3762,9 +3822,9 @@
               <div className="gvv-modal-card gvv-ask" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={swap === "leader" ? "Trocar líder" : "Vice-líder"}>
                 <p className="gvv-ask-kicker">{swap === "leader" ? "Trocar líder" : "Vice-líder"} · {house ? tagOf[house.id] : "GVV"}</p>
                 {swap === "leader"
-                  ? <GvvLeaderPick label="Líder" allowEmpty={false} value={swapTo} onChange={setSwapTo} origin={house ? gvvPoint(house) : null} tagOf={tagOf}
-                      options={[...(house && house.kind === "both" ? [house] : []), ...freeLeaders.filter((l) => l.id !== conn.vice_candidate_id), ...(leader ? [leader] : [])].filter((l, i, a) => a.findIndex((x) => x.id === l.id) === i)} />
-                  : <GvvLeaderPick label="Vice-líder" value={swapTo} onChange={setSwapTo} origin={house ? gvvPoint(house) : null} tagOf={tagOf} options={freeLeaders.filter((l) => l.id !== conn.leader_candidate_id)} />}
+                  ? <GvvLeaderPick label="Líder" value={swapTo} onChange={setSwapTo} origin={house ? gvvPoint(house) : null} tagOf={tagOf} occupied={busyMap} keepIds={house ? [house.id] : []}
+                      options={leaderOpts.filter((l) => l.id !== conn.vice_candidate_id)} />
+                  : <GvvLeaderPick label="Vice-líder" value={swapTo} onChange={setSwapTo} origin={house ? gvvPoint(house) : null} tagOf={tagOf} occupied={busyMap} options={pool.filter((l) => l.id !== conn.leader_candidate_id)} />}
                 <div className="flex justify-end gap-2 mt-4"><Button variant="outline" onClick={() => setSwap("")}>Cancelar</Button><Button onClick={applySwap}>Salvar</Button></div>
               </div>
             </div>, document.body)}
@@ -3780,13 +3840,13 @@
                 {members === null ? <p className="txt-muted">Carregando…</p> : !members.length ? <p className="txt-muted text-sm">Nenhum membro ainda. Adicione das interessadas ou cadastre ao lado.</p> : (
                   <ul className="gvv-mlist">
                     {members.map((m) => (
-                      <li key={m.id} className={m.status === "ativo" ? "" : "off"}>
+                      <li key={m.id} className={`gvv-mrow ${m.status === "ativo" ? "" : "off"}`}>
                         <Avatar name={m.full_name} size={34} />
                         <div className="min-w-0 flex-1"><b>{m.full_name} <span className={`gvv-badge ${m.kind === "frequentante" ? "" : "lead"}`}>{m.kind === "frequentante" ? "Frequentante" : "Membro"}</span></b><small>{[m.phone, m.age && `${m.age} anos`, `desde ${fmtDate(m.joined_at)}`].filter(Boolean).join(" · ")}</small></div>
-                        <button className="gvv-mini gvv-no-print" onClick={async () => { const { error } = await supabase.from("gvv_members").update({ kind: m.kind === "frequentante" ? "membro" : "frequentante" }).eq("id", m.id); if (error) return toast.error(error.message); load(); }}>{m.kind === "frequentante" ? "Virou membro" : "É frequentante"}</button>
+                        <div className="gvv-mact gvv-no-print"><button className="gvv-mini gvv-no-print" onClick={async () => { const { error } = await supabase.from("gvv_members").update({ kind: m.kind === "frequentante" ? "membro" : "frequentante" }).eq("id", m.id); if (error) return toast.error(error.message); load(); }}>{m.kind === "frequentante" ? "Virou membro" : "É frequentante"}</button>
                         {m.phone && <a href={waLink(m.phone, `Olá, ${m.full_name.split(" ")[0]}! Aqui é do seu GVV.`)} target="_blank" rel="noopener" className="text-emerald-400 gvv-no-print"><IWhats className="w-5 h-5" /></a>}
                         <button className="gvv-mini gvv-no-print" onClick={() => setStatus(m, m.status === "ativo" ? "inativo" : "ativo")}>{m.status === "ativo" ? "Inativar" : "Reativar"}</button>
-                        {!isLeaderView && <button className="gvv-mini danger gvv-no-print" onClick={() => removeMember(m)} aria-label="Tirar do GVV">✕</button>}
+                        {!isLeaderView && <button className="gvv-mini danger gvv-no-print" onClick={() => removeMember(m)} aria-label="Tirar do GVV">✕</button>}</div>
                       </li>
                     ))}
                   </ul>
@@ -3804,7 +3864,7 @@
                   ))}
                 </ul>
                 <h3 className="gvv-h3 mt-5">Cadastrar pessoa</h3>
-                <div className="grid gap-2 sm:grid-cols-[1fr_150px_130px_auto]">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_150px_150px_auto]">
                   <input className={inputCls} placeholder="Nome completo" value={manual.full_name} onChange={(e) => setManual((s) => ({ ...s, full_name: e.target.value }))} />
                   <select className={inputCls} value={manual.kind} onChange={(e) => setManual((s) => ({ ...s, kind: e.target.value }))}><option value="membro">Membro</option><option value="frequentante">Frequentante</option></select>
                   <input className={inputCls} placeholder="(41) 99999-9999" value={manual.phone} onChange={(e) => setManual((s) => ({ ...s, phone: gvvPhoneMask(e.target.value) }))} />
@@ -3849,12 +3909,12 @@
                 <Input label="Data de início do GVV" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
               </div>
               {!isLeaderView && <div className="grid gap-4 md:grid-cols-2">
-                <GvvLeaderPick label="Líder" allowEmpty={false} value={leaderId} onChange={setLeaderId} origin={house ? gvvPoint(house) : null} tagOf={tagOf}
-                  options={[...(house && house.kind === "both" ? [house] : []), ...freeLeaders.filter((l) => l.id !== vice), ...(leader && leader.id !== house?.id ? [leader] : [])].filter((l, i, a) => a.findIndex((x) => x.id === l.id) === i)} />
-                <GvvLeaderPick label="Vice-líder" value={vice} onChange={setVice} origin={house ? gvvPoint(house) : null} tagOf={tagOf}
-                  options={freeLeaders.filter((l) => l.id !== leaderId)} />
+                <GvvLeaderPick label="Líder" value={leaderId || ""} onChange={setLeaderId} origin={house ? gvvPoint(house) : null} tagOf={tagOf} occupied={busyMap} keepIds={house ? [house.id] : []}
+                  options={leaderOpts.filter((l) => l.id !== vice)} />
+                <GvvLeaderPick label="Vice-líder" value={vice} onChange={setVice} origin={house ? gvvPoint(house) : null} tagOf={tagOf} occupied={busyMap}
+                  options={pool.filter((l) => l.id !== leaderId)} />
               </div>}
-              {!isLeaderView && <p className="text-xs txt-muted">Aparecem só líderes aprovados que ainda não estão em outro GVV, do mais perto ao mais longe da casa. Clique em Salvar dados para trocar.</p>}
+              {!isLeaderView && <p className="text-xs txt-muted">Do mais perto ao mais longe da casa. Quem já está em outro GVV aparece em cinza: ao escolher, o sistema pede confirmação e tira a pessoa de lá. Clique em Salvar dados para trocar.</p>}
               {(() => { const next = gvvMeetings({ ...conn, start_date: start, meeting_day: day }, house, today, "2099-12-31").slice(0, 6); return next.length
                 ? <div><p className="text-sm font-semibold mb-1">Próximos encontros (1º 15 dias após o início, depois a cada 2 semanas):</p><div className="flex flex-wrap gap-2">{next.map((d) => <span key={d} className="gvv-badge lead">{fmtDate(d)}</span>)}</div></div>
                 : <p className="text-sm txt-muted">Defina o dia e a data de início para gerar o calendário.</p>; })()}
@@ -3865,7 +3925,11 @@
             <div className="gvv-person-card house"><p className="gvv-role">Anfitrião · casa</p><b>{pName(house)}</b><p>{house?.address || "—"}</p>{wa(house?.phone, house?.name)}
               {!isLeaderView && house && <div className="flex gap-2 mt-2 gvv-no-print"><Button size="sm" variant="outline" onClick={() => setEditP(house)}>✎ Editar</Button></div>}</div>
             <div className="gvv-person-card leader"><p className="gvv-role">Líder</p><b>{leader?.id === house?.id ? `${pName(leader)} (o próprio anfitrião)` : pName(leader)}</b><p>{leader?.member_since ? `Membro ${leader.member_since.toLowerCase()}` : ""}</p>{wa(leader?.phone, leader?.name)}
-              {!isLeaderView && <div className="flex gap-2 mt-2 gvv-no-print"><Button size="sm" onClick={() => setSwap("leader")}>⇄ Trocar líder</Button>{leader && <Button size="sm" variant="outline" onClick={() => setEditP(leader)}>✎ Editar</Button>}</div>}</div>
+              {!isLeaderView && <div className="flex flex-wrap gap-2 mt-2 gvv-no-print"><Button size="sm" onClick={() => setSwap("leader")}>{leader ? "⇄ Trocar líder" : "+ Escolher líder"}</Button>{leader && <Button size="sm" variant="outline" onClick={() => setEditP(leader)}>✎ Editar</Button>}
+                {leader && <Button size="sm" variant="outline" onClick={async () => { if (!confirm(`Tirar ${leader.name.split(" ")[0]} da liderança? O GVV fica sem líder até você escolher outro.`)) return;
+                  const { error } = await supabase.rpc("gvv_set_leader", { p_conn: conn.id, p_leader: null });
+                  if (error) return toast.error(/null value|not-null/i.test(error.message) ? "Rode no Supabase o SQL gvv-sem-lider-2026-10-22.sql." : error.message);
+                  setLeaderId(""); toast.success("GVV ficou sem líder."); onChanged?.(); }}>Tirar líder</Button>}</div>}</div>
             <div className={`gvv-person-card vice ${viceP ? "" : "empty"}`}><p className="gvv-role">Vice-líder</p><b>{viceP ? viceP.name : "Ainda não definido"}</b><p>{viceP ? (viceP.member_since ? `Membro ${viceP.member_since.toLowerCase()}` : "") : "Todo GVV precisa de um vice."}</p>{viceP && wa(viceP.phone, viceP.name)}
               {!isLeaderView && <div className="flex gap-2 mt-2 gvv-no-print"><Button size="sm" onClick={() => setSwap("vice")}>{viceP ? "⇄ Trocar vice" : "+ Adicionar vice"}</Button>{viceP && <Button size="sm" variant="outline" onClick={() => setEditP(viceP)}>✎ Editar</Button>}</div>}</div>
           </div></>}
@@ -3905,7 +3969,7 @@
           {rows === null ? <p className="txt-muted">Carregando…</p> : !list.length ? <div className="mm-card p-8 text-center txt-muted">Nenhum membro ainda. Abra um GVV em Cadastros → Conectados → Ver detalhes e adicione as pessoas.</div> : (
             <div className="mm-card overflow-x-auto">
               <table className="gvv-table"><thead><tr><th>Nome</th><th>WhatsApp</th><th>Idade</th><th>GVV</th><th>Desde</th><th>Situação</th></tr></thead>
-                <tbody>{list.map((m) => <tr key={m.id}><td className="name">{m.full_name}</td><td>{m.phone ? <a href={waLink(m.phone, `Olá, ${m.full_name.split(" ")[0]}!`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold">{m.phone}</a> : "—"}</td><td>{m.age || "—"}</td><td>{gvvName(m.connection_id)}</td><td>{fmtDate(m.joined_at)}</td><td>{m.status === "ativo" ? "Em atividade" : "Inativo"}</td></tr>)}</tbody></table>
+                <tbody>{list.map((m) => <tr key={m.id}><td className="name" data-label="Nome">{m.full_name}</td><td data-label="WhatsApp">{m.phone ? <a href={waLink(m.phone, `Olá, ${m.full_name.split(" ")[0]}!`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold">{m.phone}</a> : "—"}</td><td data-label="Idade">{m.age || "—"}</td><td data-label="GVV">{gvvName(m.connection_id)}</td><td data-label="Desde">{fmtDate(m.joined_at)}</td><td data-label="Situação">{m.status === "ativo" ? "Em atividade" : "Inativo"}</td></tr>)}</tbody></table>
             </div>
           )}
         </div>
@@ -4038,24 +4102,39 @@
 
     /* Seletor de casas: escolhe CASA 01, 02… e vê os líderes no raio. */
     /* Escolher líder ou vice: busca pelo nome e ordena pela distância até a casa. */
-    const GvvLeaderPick = ({ label, options, value, onChange, origin, tagOf = {}, allowEmpty = true }) => {
-      const [q, setQ] = useState("");
+    /* Escolher líder ou vice: busca pelo nome, ordena pela distância até a casa.
+       Mostra primeiro só quem é apenas líder; quem já está em outro GVV aparece em cinza e pede confirmação para mudar. */
+    const GvvLeaderPick = ({ label, options, value, onChange, origin, tagOf = {}, allowEmpty = true, occupied = {}, keepIds = [] }) => {
+      const toast = useToast();
+      const [q, setQ] = useState(""), [withHosts, setWithHosts] = useState(false), [busy, setBusy] = useState("");
       const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      const rows = options.map((l) => { const pt = origin ? gvvPoint(l) : null; return { l, km: pt ? gvvKm(origin, pt) : null, approx: pt?.approx }; })
+      const hasHosts = options.some((l) => l.kind !== "leader" && !keepIds.includes(l.id));
+      const rows = options.filter((l) => withHosts || l.kind === "leader" || keepIds.includes(l.id) || l.id === value)
+        .map((l) => { const pt = origin ? gvvPoint(l) : null; return { l, km: pt ? gvvKm(origin, pt) : null, approx: pt?.approx, busyIn: l.id !== value ? occupied[l.id] : null }; })
         .filter(({ l }) => !q.trim() || norm([l.name, tagOf[l.id], l.neighborhood].join(" ")).includes(norm(q.trim())))
-        .sort((a, b) => (a.km ?? 9999) - (b.km ?? 9999) || a.l.name.localeCompare(b.l.name, "pt-BR"));
+        .sort((a, b) => (!!a.busyIn - !!b.busyIn) || (a.km ?? 9999) - (b.km ?? 9999) || a.l.name.localeCompare(b.l.name, "pt-BR"));
       const cur = options.find((l) => l.id === value);
+      const choose = async (l, busyIn) => {
+        if (!busyIn) return onChange(l.id);
+        if (!confirm(`${l.name} já está ${busyIn}.\n\nTem certeza? Ele(a) sai de lá e vem para este GVV.`)) return;
+        setBusy(l.id);
+        const { error } = await supabase.rpc("gvv_release_candidate", { p_id: l.id });
+        setBusy("");
+        if (error) return toast.error(/function|schema cache/i.test(error.message) ? "Rode no Supabase o SQL gvv-sem-lider-2026-10-22.sql." : error.message);
+        onChange(l.id);
+      };
       return (
         <div className="space-y-2">
           <p className="text-sm font-semibold">{label}: <span className="txt-muted font-normal">{cur ? cur.name : "nenhum"}</span></p>
           <input className="w-full text-sm px-3 py-2 rounded-lg" style={{ border: "1px solid var(--line)", background: "var(--surface)" }} placeholder="Buscar pelo nome…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <ul className="gvv-near-list" style={{ maxHeight: 220, overflow: "auto" }}>
+          {hasHosts && <label className="flex items-center gap-2 text-xs font-semibold txt-muted"><input type="checkbox" checked={withHosts} onChange={(e) => setWithHosts(e.target.checked)} /> Mostrar também quem é líder + anfitrião</label>}
+          <ul className="gvv-near-list" style={{ maxHeight: 260, overflow: "auto" }}>
             {allowEmpty && <li><span className="gvv-km">—</span><div className="min-w-0"><b>Sem {label.toLowerCase()}</b></div><div className="ml-auto"><Button size="sm" variant={!value ? "solid" : "outline"} onClick={() => onChange("")}>{!value ? "✓" : "Escolher"}</Button></div></li>}
-            {rows.slice(0, 40).map(({ l, km, approx }) => (
-              <li key={l.id} className={`c-${gvvCatOf(l).k}`}>
+            {rows.slice(0, 60).map(({ l, km, approx, busyIn }) => (
+              <li key={l.id} className={`c-${gvvCatOf(l).k} ${busyIn ? "gvv-busy" : ""}`}>
                 <span className="gvv-km">{km != null ? gvvFmtKm(km) + (approx ? "*" : "") : "—"}</span>
-                <div className="min-w-0"><b>{tagOf[l.id] ? <span className="gvv-tagno mr-1">{tagOf[l.id]}</span> : null}{l.name}</b><p>{[gvvCatOf(l).label, l.neighborhood || l.city].filter(Boolean).join(" · ")}</p></div>
-                <div className="ml-auto"><Button size="sm" variant={value === l.id ? "solid" : "outline"} onClick={() => onChange(l.id)}>{value === l.id ? "✓" : "Escolher"}</Button></div>
+                <div className="min-w-0"><b>{tagOf[l.id] ? <span className="gvv-tagno mr-1">{tagOf[l.id]}</span> : null}{l.name}</b><p>{busyIn ? `Já está ${busyIn}` : [gvvCatOf(l).label, l.kind === "both" ? "também é anfitrião" : null, l.neighborhood || l.city].filter(Boolean).join(" · ")}</p></div>
+                <div className="ml-auto"><Button size="sm" variant={value === l.id ? "solid" : "outline"} disabled={busy === l.id} onClick={() => choose(l, busyIn)}>{value === l.id ? "✓" : busy === l.id ? "…" : busyIn ? "Trocar de GVV" : "Escolher"}</Button></div>
               </li>))}
             {!rows.length && <li className="txt-muted text-sm">Ninguém com esse nome.</li>}
           </ul>
@@ -4090,6 +4169,11 @@
       const isLeaders = kindF === "leader" || kindF === "freeLeaders" || isArch;
       const inAnyGvv = (id) => conns.some((c) => [c.leader_candidate_id, c.host_candidate_id, c.vice_candidate_id].includes(id));
       const freeHousesList = houses.filter((h) => !inAnyGvv(h.id));
+      const occMap = {};
+      conns.forEach((c) => { const t = tagOf[c.host_candidate_id] || "um GVV";
+        occMap[c.host_candidate_id] = `como casa (${t})`;
+        if (c.leader_candidate_id && c.leader_candidate_id !== c.host_candidate_id) occMap[c.leader_candidate_id] = `como líder em ${t}`;
+        if (c.vice_candidate_id) occMap[c.vice_candidate_id] = `como vice em ${t}`; });
       const freeLeadersList = leaders.filter((l) => l.kind === "leader" && !inAnyGvv(l.id));
       const src = isArch ? archived : kindF === "leader" ? leaders.filter((l) => l.kind === "leader") : kindF === "freeLeaders" ? freeLeadersList : kindF === "freeHouses" ? freeHousesList : houses;
       const [leadSel, setLeadSel] = useState(null);
@@ -4185,7 +4269,7 @@
             </div>
             {viceOpen && <div className="mt-3 space-y-3">
               <GvvLeaderPick label="Vice-líder" allowEmpty={false} value={viceTo} onChange={setViceTo} origin={selPt} tagOf={tagOf}
-                options={leaders.filter((l) => l.kind === "leader" && (!connOf(l.id) || l.id === selConn.vice_candidate_id) && l.id !== selConn.leader_candidate_id)} />
+                occupied={occMap} options={leaders.filter((l) => l.id !== selConn.leader_candidate_id && l.id !== selConn.host_candidate_id)} />
               <div className="flex justify-end"><Button onClick={() => saveVice(viceTo)} disabled={!viceTo || viceTo === selConn.vice_candidate_id}>✓ Salvar vice</Button></div>
             </div>}
           </div>
@@ -4320,9 +4404,9 @@
                 {!selPt ? <p className="gvv-conferir mt-3">Esta casa ainda não tem localização (CEP inválido ou ausente). Corrija o endereço para calcular distâncias.</p> : <>
                   <div ref={mapEl} className="gvv-house-map" />
                   <input className="w-full text-sm px-3 py-2 rounded-lg mt-3" style={{ border: "1px solid var(--line)", background: "var(--surface)" }} placeholder="Ou buscar líder pelo nome (qualquer distância)…" value={nameQ} onChange={(e) => setNameQ(e.target.value)} />
-                  {!(byName || near).length ? <p className="txt-muted text-sm mt-3">{byName ? "Nenhum líder com esse nome." : `Nenhum líder com localização até ${radius} km. Tente aumentar o raio ou buscar pelo nome.`}</p> : (
+                  {!(byName || near).filter(({ l }) => !inAnyGvv(l.id)).length ? <p className="txt-muted text-sm mt-3">{byName ? "Nenhum líder com esse nome." : `Nenhum líder com localização até ${radius} km. Tente aumentar o raio ou buscar pelo nome.`}</p> : (
                     <ul className="gvv-near-list">
-                      {(byName || near).map(({ l, pt, km }) => {
+                      {(byName || near).filter(({ l }) => !inAnyGvv(l.id)).map(({ l, pt, km }) => {
                         const cn = connOf(l.id);
                         return (
                           <li key={l.id} className={`c-${gvvCatOf(l).k}`}>
@@ -4359,7 +4443,7 @@
                 </div>
                 <ol className="flex gap-2 mt-4 text-sm font-semibold"><li className={`gvv-chip ${askStep === 1 ? "on" : ""}`}>1 · Líder ✓</li><li className={`gvv-chip ${askStep === 2 ? "on" : ""}`}>2 · Vice-líder</li></ol>
                 {askStep === 2 && <div className="mt-3"><GvvLeaderPick label="Vice-líder" value={askVice} onChange={setAskVice} origin={selPt} tagOf={tagOf}
-                  options={leaders.filter((l) => l.kind === "leader" && l.id !== ask.l.id && l.id !== sel.id && !connOf(l.id))} /></div>}
+                  occupied={occMap} options={leaders.filter((l) => l.id !== ask.l.id && l.id !== sel.id)} /></div>}
                 <p className="txt-muted text-sm mt-3">{askStep === 1 ? "Próximo passo: escolher o vice-líder (pelo nome ou pelo mais perto)." : "Dá para trocar líder e vice depois em Conectados → Ver detalhes."}</p>
                 <div className="flex justify-end gap-2 mt-4">
                   <Button variant="outline" onClick={() => askStep === 2 ? setAskStep(1) : setAsk(null)}>{askStep === 2 ? "← Voltar" : "Cancelar"}</Button>
@@ -4470,9 +4554,8 @@
       const mapEl = useRef(null), map = useRef(null);
       const first = r.full_name.split(" ")[0];
       useEffect(() => { (async () => {
-        const q = [r.address, r.number].filter(Boolean).join(", ");
-        if (!q.trim()) return setErr("Esta pessoa não informou endereço. Peça pelo WhatsApp e escolha o GVV na lista.");
-        try { setOrigin(await gvvLocate(q)); } catch (e) { setErr("Não achei o endereço no mapa. A lista abaixo está sem distância."); }
+        if (!String(r.address || "").trim()) return setErr("Esta pessoa não informou endereço. Peça pelo WhatsApp e escolha o GVV na lista.");
+        try { setOrigin(await gvvLocateLoose(r.address, r.number)); } catch (e) { setErr("Não achei o endereço no mapa. A lista abaixo está sem distância."); }
       })(); }, [r.id]);
       const ideal = gvvNetForAge(r.age);
       const rows = gvvs.map((g) => { const pt = gvvPoint(g.h); return { g, pt, km: pt && origin ? gvvKm(origin, pt) : null, n: members.filter((m) => m.connection_id === g.id && m.status !== "inativo").length }; })
