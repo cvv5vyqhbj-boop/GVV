@@ -282,6 +282,9 @@
     .gvv-stepper button { width: 42px; height: 42px; border-radius: 12px; font-size: 22px; font-weight: 800; background: var(--surface-2); border: 1px solid var(--line); }
     .gvv-stepper b { min-width: 40px; text-align: center; font-family: var(--gvv-display); font-size: 24px; font-weight: 400; }
     .gvv-report-send { width: 100%; margin-top: 8px; }
+    .gvv-report input[type=date] { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; -webkit-appearance: none; appearance: none; display: block; }
+    .gvv-report .gvv-rstep > * { min-width: 0; }
+    .gvv-yesno button.on.muted { background: var(--surface-hi); color: var(--fg); border-color: var(--line); }
     @media (max-width: 640px) {
       .gvv-detail-head { padding: 16px !important; border-radius: 16px !important; gap: 12px !important; }
       .gvv-detail-head h2 { font-size: 26px !important; }
@@ -295,7 +298,7 @@
       .gvv-presence button { padding: 11px 14px !important; font-size: 15px !important; }
       .gvv-visitor { grid-template-columns: 1fr auto; }
       .gvv-visitor input:nth-of-type(2), .gvv-visitor label { grid-column: 1 / 3; }
-      .gvv-report-send { position: sticky; bottom: calc(env(safe-area-inset-bottom) + 92px); z-index: 5; box-shadow: 0 10px 24px -6px #000a; }
+      .gvv-report { padding-bottom: 24px !important; }
     }
     /* ===== Modo colorido (html[data-color=on]) =====
        Cada rede tem cor (--nc) e cor de texto sobre ela (--ni). As regras abaixo só usam essas duas. */
@@ -3477,10 +3480,31 @@
         <div><button type="button" onClick={() => onChange(Math.max(0, value - 1))} aria-label="Menos">−</button><b>{value}</b><button type="button" onClick={() => onChange(value + 1)} aria-label="Mais">+</button></div>
       </div>
     );
+    /* Pergunta sim/não; no "Sim" abre quem foi (presentes/visitantes por toque) e campos de nome + WhatsApp. */
+    const GvvDecision = ({ n, title, count, on, onToggle, people, picked, onPick, extra, onExtra, hint }) => {
+      const setRow = (i, patch) => onExtra(extra.map((x, j) => j === i ? { ...x, ...patch } : x));
+      return (
+        <div className="gvv-rstep"><p className="gvv-rstep-h"><i>{n}</i> {title} {on && <span>{count}</span>}</p>
+          <div className="gvv-yesno"><button type="button" className={!on ? "on muted" : ""} onClick={() => onToggle(false)}>Não</button><button type="button" className={on ? "on" : ""} onClick={() => { onToggle(true); if (!extra.length && !people.length) onExtra([{ name: "", phone: "" }]); }}>Sim, teve</button></div>
+          {on && <>
+            {people.length > 0 && <><p className="text-sm txt-muted">Toque em quem foi:</p>
+              <div className="gvv-presence">{people.map((x) => { const sel = picked.includes(x.key); return <button type="button" key={x.key} className={sel ? "on" : ""} onClick={() => onPick(x.key)}>{sel ? "✓ " : ""}{x.name.split(" ").slice(0, 2).join(" ")}{x.visitor ? " · visitante" : ""}</button>; })}</div></>}
+            {extra.map((x, i) => (
+              <div key={i} className="gvv-visitor">
+                <input className={inputCls} placeholder="Nome" value={x.name} onChange={(e) => setRow(i, { name: e.target.value })} />
+                <input className={inputCls} type="tel" inputMode="tel" placeholder="WhatsApp (opcional)" value={x.phone} onChange={(e) => setRow(i, { phone: gvvPhoneMask(e.target.value) })} />
+                <button type="button" className="gvv-mini danger" onClick={() => onExtra(extra.filter((_, j) => j !== i))} aria-label="Tirar">✕</button>
+              </div>))}
+            <Button variant="outline" className="w-full" onClick={() => onExtra([...extra, { name: "", phone: "" }])}>+ Adicionar {people.length ? "outra pessoa" : "pessoa"}</Button>
+            {hint && count > 0 && <p className="text-xs txt-muted">{hint}</p>}
+          </>}
+        </div>
+      );
+    };
     const GvvReportForm = ({ conn, active, onSaved }) => {
       const toast = useToast();
       const today = todayISO();
-      const blank = () => ({ date: today, happened: true, present: [], visitors: [], extra: 0, jesus: [], bap: [], jesusOther: "", bapOther: "", notes: "", prayer: "" });
+      const blank = () => ({ date: today, happened: true, present: [], visitors: [], extra: 0, jesus: [], bap: [], jesusOn: false, bapOn: false, jesusNew: [], bapNew: [], notes: "", prayer: "" });
       const [f, setF] = useState(blank);
       const [busy, setBusy] = useState(false);
       const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
@@ -3488,9 +3512,9 @@
       const named = f.visitors.filter((v) => v.name.trim());
       const people = [...active.filter((m) => f.present.includes(m.id)).map((m) => ({ key: "m:" + m.id, name: m.full_name, phone: m.phone })),
         ...f.visitors.map((v, i) => ({ key: "v:" + i, name: v.name.trim(), phone: v.phone, visitor: true })).filter((x) => x.name)];
-      const pick = (keys, other) => [...people.filter((x) => keys.includes(x.key)).map((x) => x.name + (x.phone ? ` (${x.phone})` : "")),
-        ...other.split(/\n|,|;/).map((x) => x.trim()).filter((x) => x.length > 1)];
-      const jesusList = pick(f.jesus, f.jesusOther), bapList = pick(f.bap, f.bapOther);
+      const fmt = (x) => x.name.trim() + (x.phone ? ` (${x.phone})` : "");
+      const pick = (on, keys, extra) => !on ? [] : [...people.filter((x) => keys.includes(x.key)).map(fmt), ...extra.filter((x) => x.name.trim().length > 1).map(fmt)];
+      const jesusList = pick(f.jesusOn, f.jesus, f.jesusNew), bapList = pick(f.bapOn, f.bap, f.bapNew);
       const setVisitor = (i, patch) => set("visitors", f.visitors.map((v, j) => j === i ? { ...v, ...patch } : v));
       const save = async () => {
         if (!f.date) return toast.error("Escolha a data do encontro.");
@@ -3502,7 +3526,7 @@
           const row = { connection_id: conn.id, meeting_date: f.date, happened: ok, present_ids: ok ? f.present : [],
             visitors: ok ? named.length + f.extra : 0, conversions: ok ? jesusList.length : 0, conversion_names: ok ? jesusList.join(", ") : "",
             baptisms: ok ? bapList.length : 0, baptism_names: ok ? bapList.join("\n") : "", prayer_requests: f.prayer, notes: f.notes, created_by: me?.id || null,
-            visitor_list: ok ? named.map((v, i) => ({ name: v.name.trim(), phone: v.phone, jesus: f.jesus.includes("v:" + f.visitors.indexOf(v)), bap: f.bap.includes("v:" + f.visitors.indexOf(v)) })) : [] };
+            visitor_list: ok ? named.map((v, i) => ({ name: v.name.trim(), phone: v.phone, jesus: f.jesusOn && f.jesus.includes("v:" + f.visitors.indexOf(v)), bap: f.bapOn && f.bap.includes("v:" + f.visitors.indexOf(v)) })) : [] };
           let { data: saved, error } = await supabase.from("gvv_reports").upsert(row, { onConflict: "connection_id,meeting_date" }).select("id").maybeSingle();
           if (error && /visitor_list/.test(error.message)) { delete row.visitor_list; ({ data: saved, error } = await supabase.from("gvv_reports").upsert(row, { onConflict: "connection_id,meeting_date" }).select("id").maybeSingle()); }
           if (error) throw error;
@@ -3515,8 +3539,6 @@
         } catch (e) { toast.error(e.message || "Não foi possível salvar."); }
         finally { setBusy(false); }
       };
-      const Chips = ({ k }) => !people.length ? <p className="txt-muted text-sm">Marque os presentes ou adicione visitantes primeiro.</p> :
-        <div className="gvv-presence">{people.map((x) => { const on = f[k].includes(x.key); return <button type="button" key={x.key} className={on ? "on" : ""} onClick={() => toggle(k, x.key)}>{on ? "✓ " : ""}{x.name.split(" ").slice(0, 2).join(" ")}{x.visitor ? " · visitante" : ""}</button>; })}</div>;
       return (
         <section className="mm-card p-4 gvv-no-print gvv-report">
           <h3 className="gvv-h3">📝 Relatório do encontro</h3>
@@ -3543,15 +3565,11 @@
               <Button variant="outline" className="w-full" onClick={() => set("visitors", [...f.visitors, { name: "", phone: "", freq: false }])}>+ Adicionar visitante</Button>
               <GvvStepper label="Visitantes sem nome" value={f.extra} onChange={(v) => set("extra", v)} />
             </div>
-            <div className="gvv-rstep"><p className="gvv-rstep-h"><i>4</i> Alguém aceitou Jesus? 🙌 <span>{jesusList.length}</span></p>
-              <Chips k="jesus" />
-              <input className={inputCls + " mt-2"} placeholder="Outra pessoa (nome e telefone)" value={f.jesusOther} onChange={(e) => set("jesusOther", e.target.value)} />
-            </div>
-            <div className="gvv-rstep"><p className="gvv-rstep-h"><i>5</i> Alguém quer se batizar? 💧 <span>{bapList.length}</span></p>
-              <Chips k="bap" />
-              <input className={inputCls + " mt-2"} placeholder="Outra pessoa (nome e telefone)" value={f.bapOther} onChange={(e) => set("bapOther", e.target.value)} />
-              {bapList.length > 0 && <p className="text-xs txt-muted mt-1">Entram na lista do próximo batismo automaticamente.</p>}
-            </div>
+            <GvvDecision n={4} title="Alguém aceitou Jesus? 🙌" count={jesusList.length} on={f.jesusOn} onToggle={(v) => set("jesusOn", v)}
+              people={people} picked={f.jesus} onPick={(k) => toggle("jesus", k)} extra={f.jesusNew} onExtra={(v) => set("jesusNew", v)} />
+            <GvvDecision n={5} title="Alguém quer se batizar? 💧" count={bapList.length} on={f.bapOn} onToggle={(v) => set("bapOn", v)}
+              people={people} picked={f.bap} onPick={(k) => toggle("bap", k)} extra={f.bapNew} onExtra={(v) => set("bapNew", v)}
+              hint="Entram na lista do próximo batismo automaticamente." />
           </>}
           <div className="gvv-rstep"><p className="gvv-rstep-h"><i>{f.happened ? 6 : 2}</i> {f.happened ? "Como foi?" : "Por que não aconteceu?"}</p>
             <textarea className={inputCls + " min-h-[80px]"} placeholder={f.happened ? "Palavra, louvor, o que marcou…" : "Ex.: chuva, anfitrião viajou…"} value={f.notes} onChange={(e) => set("notes", e.target.value)} />
