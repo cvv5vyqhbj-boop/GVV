@@ -3385,13 +3385,22 @@
         setBusy(p.id);
         try {
           const { error } = await supabaseSignup.auth.signUp({ email, password: pin, options: { data: { name: p.name } } });
-          if (error) throw new Error(/already/i.test(error.message) ? "Este WhatsApp já tem acesso. Para trocar o PIN, apague o usuário em Supabase → Authentication → Users e crie de novo." : error.message);
+          if (error) throw new Error(/already/i.test(error.message) ? "Este WhatsApp já tem acesso. Use o botão Gerar novo PIN." : error.message);
           let lastErr = null;
           for (let i = 0; i < 4; i++) { const { error: e2 } = await supabase.rpc("gvv_link_leader_login", { p_email: email, p_candidate: p.id }); if (!e2) { lastErr = null; break; } lastErr = e2; await new Promise((r) => setTimeout(r, 900)); }
           if (lastErr) throw lastErr;
           setMade({ p, pin }); load();
         } catch (e) { toast.error(e.message || "Não foi possível criar o acesso."); }
         finally { setBusy(""); }
+      };
+      const newPin = async (p) => {
+        if (!confirm(`Gerar um PIN novo para ${p.name}? O PIN antigo deixa de funcionar.`)) return;
+        const pin = String(Math.floor(100000 + Math.random() * 900000));
+        setBusy(p.id);
+        const { error } = await supabase.rpc("gvv_reset_leader_pin", { p_candidate: p.id, p_pin: pin });
+        setBusy("");
+        if (error) return toast.error(/function|schema cache/i.test(error.message) ? "Rode no Supabase o SQL gvv-novo-pin-2026-10-22.sql e tente de novo." : error.message);
+        setMade({ p, pin, renewed: true });
       };
       const msg = made && `Olá, ${made.p.name.split(" ")[0]}! 🙌\nSeu acesso ao seu GVV está pronto.\n\n1) Abra: ${location.origin}/lider\n2) Digite seu WhatsApp\n3) PIN: ${made.pin}\n\nLá você coloca os membros e envia o relatório de cada encontro.`;
       return (
@@ -3402,13 +3411,13 @@
             {people.filter(Boolean).map((p) => { const has = logins.find((l) => l.candidate_id === p.id); return (
               <div key={p.id} className="gvv-access-row">
                 <div className="min-w-0 flex-1"><b>{p.name}</b><p>{p.phone || "sem WhatsApp"}</p></div>
-                {has ? <span className="gvv-badge ok">✓ acesso criado</span> : <Button size="sm" onClick={() => create(p)} disabled={busy === p.id || !p.phone}>{busy === p.id ? "Criando…" : "Criar acesso + PIN"}</Button>}
+                {has ? <div className="flex items-center gap-2"><span className="gvv-badge ok">✓ acesso criado</span><Button size="sm" variant="outline" onClick={() => newPin(p)} disabled={busy === p.id}>{busy === p.id ? "Gerando…" : "Gerar novo PIN"}</Button></div> : <Button size="sm" onClick={() => create(p)} disabled={busy === p.id || !p.phone}>{busy === p.id ? "Criando…" : "Criar acesso + PIN"}</Button>}
               </div>
             ); })}
           </div>
           {made && (
             <div className="gvv-decide mt-3">
-              <p>Acesso criado para <b>{made.p.name}</b>. PIN: <b className="text-lg tracking-widest">{made.pin}</b> (anote, ele não aparece de novo)</p>
+              <p>{made.renewed ? "Novo PIN de" : "Acesso criado para"} <b>{made.p.name}</b>. PIN: <b className="text-lg tracking-widest">{made.pin}</b> (anote, ele não aparece de novo)</p>
               <div className="flex flex-wrap gap-2 justify-end">
                 <Button variant="outline" onClick={() => { navigator.clipboard?.writeText(msg); toast.success("Mensagem copiada."); }}>Copiar mensagem</Button>
                 <a className="ui-btn" href={waLink(made.p.phone, msg)} target="_blank" rel="noopener"><Button><IWhats className="w-4 h-4" /> Enviar no WhatsApp</Button></a>
