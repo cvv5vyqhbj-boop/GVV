@@ -267,6 +267,7 @@
 
     .gvv-detail-stats > div.bap { background: linear-gradient(150deg, #2B77E4, #1a4fa0) !important; border-color: #2B77E4 !important; color: #fff; }
     .gvv-detail-stats > div.bap span { color: rgba(255,255,255,.85) !important; }
+    .gvv-guardian { margin-top: 14px; padding: 14px; border-radius: 14px; border: 1px dashed var(--gvv-lime); }
     .gvv-link-ok { background: color-mix(in srgb, #ff8a00 14%, transparent); border: 1px solid color-mix(in srgb, #ff8a00 45%, transparent); }
     .gvv-link-free { background: var(--surface-2); border: 1px dashed var(--line); }
     .gvv-chip.gvv-free { border-style: dashed !important; }
@@ -2429,12 +2430,14 @@
     );
     const GvvCandidateForm = () => {
       const [f, setF] = useState({ kind: "", name: "", birth: "", phone: "", email: "", sex: "", marital: "", member: "", network: "",
-        cep: "", street: "", number: "", neighborhood: "", city: "", reference: "", residence: "", fits: "", days: [], shifts: [], publics: [], notes: "", agree: false });
+        cep: "", street: "", number: "", neighborhood: "", city: "", reference: "", residence: "", fits: "", days: [], shifts: [], publics: [], notes: "", agree: false, gMember: "", gAgree: "", gName: "" });
       const [busy, setBusy] = useState(false), [err, setErr] = useState(""), [done, setDone] = useState(false);
       const [geo, setGeo] = useState(null);
       const set = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
       const hasHouse = f.kind === "host" || f.kind === "both";
       const leads = f.kind === "leader" || f.kind === "both";
+      // Juniores/Adolescentes: pede autorização do pai ou responsável
+      const kidsNet = (leads && ["juniores", "adolescentes"].includes(f.network)) || (!leads && f.publics.some((x) => ["Juniores", "Adolescentes"].includes(x)));
       const fillCep = async (raw) => {
         const d = raw.replace(/\D/g, ""); if (d.length !== 8) return;
         try {
@@ -2459,6 +2462,11 @@
             need(f.residence && f.fits, "Conte sobre a sua residência (tipo e se acomoda 15 pessoas).");
             need(f.days.length && f.shifts.length, "Escolha os dias e turnos para os encontros.");
           }
+          if (kidsNet) {
+            need(f.gMember, "Diga se seu pai ou responsável é membro da ADVEC.");
+            need(f.gAgree === "Sim", "Para juniores e adolescentes, seu pai ou responsável precisa estar de acordo.");
+            need(f.gName.trim().split(/\s+/).length >= 2, "Escreva o nome completo do pai ou responsável.");
+          }
           need(f.agree, "Marque a declaração no final da ficha.");
         } catch (e2) { setErr(e2.message); return; }
         setBusy(true);
@@ -2467,6 +2475,7 @@
         try {
           const { error } = await supabase.rpc("gvv_submit_candidate", { p: {
             kind: f.kind, name: f.name, phone: f.phone, email: f.email, birth_date: f.birth, sex: f.sex, marital_status: f.marital,
+            guardian_name: kidsNet ? f.gName.trim() : "", guardian_member: kidsNet ? f.gMember === "Sim" : null, guardian_agrees: kidsNet ? f.gAgree === "Sim" : null,
             member_since: f.member, network: net, audience: leads ? GVV_ROSTER_CATS.find((c) => c.k === f.network)?.label : f.publics.join(", "),
             address, cep: f.cep, neighborhood: f.neighborhood, city: f.city, reference_point: f.reference,
             residence_type: f.residence, fits_15: f.fits === "Sim", days: f.days.join(", "), shifts: f.shifts.join(", "),
@@ -2517,6 +2526,17 @@
                 {leads && <label className="gvv-field"><span className="gvv-tag lime">Categoria de GVV que deseja liderar</span>
                   <select className="gvv-input" value={f.network} onChange={(e) => set("network")(e.target.value)}><option value="">Escolha uma opção</option>{GVV_ROSTER_CATS.map((c) => <option key={c.k} value={c.k}>{c.label}</option>)}</select></label>}
               </div>
+              {kidsNet && <div className="gvv-guardian">
+                <p className="gvv-sec-hint" style={{ marginTop: 0 }}>GVV de juniores ou adolescentes: precisamos da autorização do seu pai ou responsável.</p>
+                <div className="gvv-grid2">
+                  <div className="gvv-field"><span className="gvv-tag blue">Seu pai/responsável é membro da ADVEC?</span>
+                    <div className="gvv-multi">{["Sim", "Não"].map((o) => <button type="button" key={o} className={f.gMember === o ? "on" : ""} aria-pressed={f.gMember === o} onClick={() => set("gMember")(o)}>{o}</button>)}</div></div>
+                  <div className="gvv-field"><span className="gvv-tag blue">Seu pai/responsável está de acordo?</span>
+                    <div className="gvv-multi">{["Sim", "Não"].map((o) => <button type="button" key={o} className={f.gAgree === o ? "on" : ""} aria-pressed={f.gAgree === o} onClick={() => set("gAgree")(o)}>{o}</button>)}</div></div>
+                  <label className="gvv-field span"><span className="gvv-tag lime">Nome completo do pai/responsável</span>
+                    <input className="gvv-input" value={f.gName} onChange={(e) => set("gName")(e.target.value)} placeholder="Nome e sobrenome" /></label>
+                </div>
+              </div>}
             </section>
 
             <section className="gvv-sec">
@@ -3134,6 +3154,7 @@
                     <dt>Público</dt><dd>{open.r.audience || "—"}</dd>
                     {open.r.kind !== "leader" && <><dt>Dias · turno</dt><dd>{open.r.availability || "—"}</dd><dt>Residência</dt><dd>{[open.r.residence_type, open.r.capacity && `até ${open.r.capacity} pessoas`].filter(Boolean).join(" · ") || "—"}</dd></>}
                     <dt>Endereço</dt><dd>{addr(open.r) || "Sem endereço"}</dd>
+                    {open.r.guardian_name && <><dt>Pai/responsável</dt><dd>{open.r.guardian_name} · {open.r.guardian_member ? "membro" : "não é membro"} · {open.r.guardian_agrees ? "✓ de acordo" : "⚠ não está de acordo"}</dd></>}
                     {open.r.reference_point && <><dt>Referência</dt><dd>{open.r.reference_point}</dd></>}
                     <dt>Situação</dt><dd>{GVV_STATUS_LABEL[status(open.r)] || status(open.r)}</dd>
                     {open.r.source_text && <><dt>Observação</dt><dd>{open.r.source_text}</dd></>}
@@ -3643,6 +3664,26 @@
       const setStatus = async (m, status) => { const { error } = await supabase.from("gvv_members").update({ status }).eq("id", m.id); if (error) return toast.error(error.message); load(); };
       const removeMember = async (m) => { if (!confirm(`Tirar ${m.full_name} deste GVV?`)) return; const { error } = await supabase.from("gvv_members").delete().eq("id", m.id); if (error) return toast.error(error.message); load(); };
       const [leaderId, setLeaderId] = useState(conn.leader_candidate_id);
+      // Interessadas: localiza o endereço (uma por segundo, guardado no aparelho) para mostrar a distância até a casa.
+      const [iGeo, setIGeo] = useState(() => { try { return JSON.parse(localStorage.getItem("gvv_interest_geo") || "{}"); } catch (e) { return {}; } });
+      useEffect(() => {
+        if (tab !== "membros" || !interests.length) return;
+        let stop = false;
+        (async () => {
+          const cache = { ...iGeo };
+          for (const i of interests) {
+            if (stop) break;
+            if (i.id in cache || (i.lat != null && i.lng != null)) continue;
+            const q = [i.address, i.number].filter(Boolean).join(", ");
+            if (!q.trim()) { cache[i.id] = null; continue; }
+            try { const g = await gvvLocate(q); cache[i.id] = { lat: g.lat, lng: g.lng }; } catch (e) { cache[i.id] = null; }
+            if (stop) break;
+            setIGeo({ ...cache }); try { localStorage.setItem("gvv_interest_geo", JSON.stringify(cache)); } catch (e) {}
+            await new Promise((r) => setTimeout(r, 1100));
+          }
+        })();
+        return () => { stop = true; };
+      }, [tab, interests.length]);
       const [swap, setSwap] = useState(""), [swapTo, setSwapTo] = useState(""), [editP, setEditP] = useState(null);
       useEffect(() => { setSwapTo(swap === "leader" ? conn.leader_candidate_id : swap === "vice" ? (conn.vice_candidate_id || "") : ""); }, [swap]);
       const applySwap = async () => {
@@ -3683,7 +3724,10 @@
       const pName = (r) => r ? r.name : "—";
       const wa = (phone, name) => phone ? <a href={waLink(phone, `Olá, ${(name || "").split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="gvv-wa"><IWhats className="w-4 h-4" /> {phone}</a> : <span className="txt-faint">—</span>;
       const freeLeaders = leaders.filter((l) => l.id === conn.vice_candidate_id || (!usedIds.has(l.id) && l.id !== conn.leader_candidate_id && l.id !== conn.host_candidate_id));
-      const shownInterests = interests.filter((i) => !qi.trim() || norm([i.full_name, i.phone, i.address].join(" ")).includes(norm(qi.trim())));
+      const housePt = house ? gvvPoint(house) : null;
+      const kmOf = (i) => { const g = iGeo[i.id] || (i.lat != null && i.lng != null ? { lat: +i.lat, lng: +i.lng } : null); return g && housePt ? gvvKm(housePt, g) : null; };
+      const shownInterests = interests.filter((i) => !qi.trim() || norm([i.full_name, i.phone, i.address].join(" ")).includes(norm(qi.trim())))
+        .map((i) => ({ ...i, km: kmOf(i) })).sort((a, b) => (a.km ?? 9999) - (b.km ?? 9999));
       return (
         <div className="gvv-detail space-y-4">
           {onBack && <button onClick={onBack} className="gvv-back-dark gvv-no-print"><IChevronLeft className="w-4 h-4" /> Voltar para os GVVs</button>}
@@ -3750,11 +3794,12 @@
               </section>
               <section className="mm-card p-4 gvv-no-print">
                 <h3 className="gvv-h3">Adicionar das interessadas</h3>
+                <p className="text-xs txt-muted mb-2">{housePt ? "Da mais perto à mais longe da casa do GVV (linha reta)." : "Esta casa está sem localização: corrija o endereço para ver as distâncias."}</p>
                 <input className={inputCls} placeholder="Buscar nome, telefone ou bairro" value={qi} onChange={(e) => setQi(e.target.value)} />
                 <ul className="gvv-mlist mt-2 max-h-[320px] overflow-auto">
                   {!shownInterests.length && <li className="txt-muted text-sm">Nenhuma interessada aguardando.</li>}
                   {shownInterests.slice(0, 40).map((i) => (
-                    <li key={i.id}><div className="min-w-0 flex-1"><b>{i.full_name}</b><small>{[i.age && `${i.age} anos`, GVV_SEX.find(([v]) => v === i.sex)?.[1], i.address].filter(Boolean).join(" · ")}</small></div>
+                    <li key={i.id}><span className="gvv-km" title="Distância até a casa do GVV">{i.km != null ? gvvFmtKm(i.km) : (i.id in iGeo || !housePt ? "—" : "…")}</span><div className="min-w-0 flex-1"><b>{i.full_name}</b><small>{[i.age && `${i.age} anos`, GVV_SEX.find(([v]) => v === i.sex)?.[1], i.address].filter(Boolean).join(" · ")}</small></div>
                       <Button size="sm" onClick={() => addInterest(i)}>Colocar no GVV</Button></li>
                   ))}
                 </ul>
