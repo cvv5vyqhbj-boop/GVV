@@ -4426,20 +4426,20 @@
                 {!selPt ? <p className="gvv-conferir mt-3">Esta casa ainda não tem localização (CEP inválido ou ausente). Corrija o endereço para calcular distâncias.</p> : <>
                   <div ref={mapEl} className="gvv-house-map" />
                   <input className="w-full text-sm px-3 py-2 rounded-lg mt-3" style={{ border: "1px solid var(--line)", background: "var(--surface)" }} placeholder="Ou buscar líder pelo nome (qualquer distância)…" value={nameQ} onChange={(e) => setNameQ(e.target.value)} />
-                  {!(byName || near).filter(({ l }) => !inAnyGvv(l.id)).length ? <p className="txt-muted text-sm mt-3">{byName ? "Nenhum líder com esse nome." : `Nenhum líder com localização até ${radius} km. Tente aumentar o raio ou buscar pelo nome.`}</p> : (
+                  {!(byName || near).length ? <p className="txt-muted text-sm mt-3">{byName ? "Nenhum líder com esse nome." : `Nenhum líder com localização até ${radius} km. Tente aumentar o raio ou buscar pelo nome.`}</p> : (
                     <ul className="gvv-near-list">
-                      {(byName || near).filter(({ l }) => !inAnyGvv(l.id)).map(({ l, pt, km }) => {
-                        const cn = connOf(l.id);
+                      {[...(byName || near)].sort((a, b) => !!inAnyGvv(a.l.id) - !!inAnyGvv(b.l.id)).map(({ l, pt, km }) => {
+                        const cn = inAnyGvv(l.id);
                         return (
-                          <li key={l.id} className={`c-${gvvCatOf(l).k}`}>
+                          <li key={l.id} className={`c-${gvvCatOf(l).k} ${cn ? "gvv-busy" : ""}`}>
                             <span className="gvv-km">{km != null ? gvvFmtKm(km) : "—"}{pt.approx ? "*" : ""}</span>
                             <div className="min-w-0">
                               <b>{tagOf[l.id] ? <span className="gvv-tagno mr-1">{tagOf[l.id]}</span> : null}{l.name}</b>
-                              <p>{[gvvCatOf(l).label, l.kind === "both" ? "também é anfitrião" : null, l.neighborhood || l.city].filter(Boolean).join(" · ")}</p>
+                              <p>{cn ? `✓ Já conectado ${occMap[l.id] || "em um GVV"}` : [gvvCatOf(l).label, l.kind === "both" ? "também é anfitrião" : null, l.neighborhood || l.city].filter(Boolean).join(" · ")}</p>
                             </div>
                             <div className="flex items-center gap-2 ml-auto">
                               {l.phone && <a href={waLink(l.phone, `Olá, ${l.name.split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="text-emerald-400" title="WhatsApp"><IWhats className="w-5 h-5" /></a>}
-                              {cn ? <span className="text-[12.5px] txt-muted">✓ já conectado</span>
+                              {cn ? <span className="gvv-badge ok">✓ conectado</span>
                                 : <Button size="sm" onClick={() => setAsk({ l, km })} disabled={!!selConn || busy === l.id}>{busy === l.id ? "…" : "Conectar"}</Button>}
                             </div>
                           </li>
