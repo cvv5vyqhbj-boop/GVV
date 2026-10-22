@@ -267,6 +267,8 @@
 
     .gvv-detail-stats > div.bap { background: linear-gradient(150deg, #2B77E4, #1a4fa0) !important; border-color: #2B77E4 !important; color: #fff; }
     .gvv-detail-stats > div.bap span { color: rgba(255,255,255,.85) !important; }
+    .gvv-link-ok { background: color-mix(in srgb, #ff8a00 14%, transparent); border: 1px solid color-mix(in srgb, #ff8a00 45%, transparent); }
+    .gvv-link-free { background: var(--surface-2); border: 1px dashed var(--line); }
     .gvv-chip.gvv-free { border-style: dashed !important; }
     .gvv-chip.gvv-free.on { background: #ff8a00 !important; border-color: #ff8a00 !important; color: #fff !important; border-style: solid !important; }
     .gvv-report .gvv-rstep { padding: 14px 0; border-top: 1px solid var(--line); display: grid; gap: 10px; }
@@ -2923,6 +2925,9 @@
       const [adding, setAdding] = useState(null);
       const [editing, setEditing] = useState(null);
       const [reloadKey, setReloadKey] = useState(0);
+      const [rconns, setRconns] = useState([]), [openGvv, setOpenGvv] = useState(null);
+      useEffect(() => { supabase.from("gvv_connections").select("*").order("created_at").then(({ data }) => setRconns(data || [])); }, [reloadKey]);
+      const connOfR = (id) => rconns.find((c) => [c.leader_candidate_id, c.host_candidate_id, c.vice_candidate_id].includes(id));
       const [err, setErr] = useState("");
       const [cat, setCat] = useState("");
       const [kindF, setKindF] = useState("");
@@ -2982,6 +2987,9 @@
         const blob = new Blob(["﻿" + [head.map(esc).join(";"), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `gvv-${cat || "todas"}${kindF ? "-" + kindF : ""}-${todayISO()}.csv`; a.click();
       };
+      if (openGvv) { const cur = rconns.find((c) => c.id === openGvv);
+        if (cur) return <GvvGroupDetail conn={cur} byId={Object.fromEntries(all.map((r) => [r.id, r]))} tagOf={tagOf} leaders={all.filter((r) => r.kind !== "host" && r.leader_status === "approved")}
+          usedIds={new Set(rconns.flatMap((c) => [c.leader_candidate_id, c.host_candidate_id, c.vice_candidate_id]).filter(Boolean))} onBack={() => setOpenGvv(null)} onChanged={() => setReloadKey((k) => k + 1)} />; }
       return (
         <div className="space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -3070,42 +3078,10 @@
               </div>
             )}
             {semCat.length > 0 && <p className="text-sm txt-muted">{semCat.length} cadastro(s) sem categoria — veja no modo Tabela.</p>}
-            {open && (
-              <div className="gvv-modal" onClick={() => setOpen(null)}>
-                <div className="gvv-modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={open.r.name}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div><span className="gvv-tagno big">{open.tag}</span><h3 className="font-serif text-[26px] mt-2">{open.r.name}</h3><p className="txt-muted text-sm">{open.kind} · {open.cat}</p></div>
-                    <button onClick={() => setOpen(null)} className="p-2 rounded-lg hover-surface" aria-label="Fechar"><IX className="w-5 h-5" /></button>
-                  </div>
-                  <dl className="gvv-dl">
-                    <dt>WhatsApp</dt><dd>{open.r.phone ? <a href={waLink(open.r.phone, `Olá, ${open.r.name.split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold">{open.r.phone}</a> : "—"}</dd>
-                    <dt>Idade</dt><dd>{gvvAge(open.r.birth_date) || "—"}</dd>
-                    <dt>Membro há</dt><dd>{open.r.member_since || "—"}</dd>
-                    <dt>Público</dt><dd>{open.r.audience || "—"}</dd>
-                    {open.r.kind !== "leader" && <><dt>Dias · turno</dt><dd>{open.r.availability || "—"}</dd><dt>Residência</dt><dd>{[open.r.residence_type, open.r.capacity && `até ${open.r.capacity} pessoas`].filter(Boolean).join(" · ") || "—"}</dd></>}
-                    <dt>Endereço</dt><dd>{addr(open.r) || "Sem endereço"}</dd>
-                    {open.r.reference_point && <><dt>Referência</dt><dd>{open.r.reference_point}</dd></>}
-                    <dt>Situação</dt><dd>{GVV_STATUS_LABEL[status(open.r)] || status(open.r)}</dd>
-                    {open.r.source_text && <><dt>Observação</dt><dd>{open.r.source_text}</dd></>}
-                  </dl>
-                  {(open.r.review_notes || "").trim() && <p className="gvv-conferir">⚠ {open.r.review_notes}</p>}
-                  <div className="flex justify-end mt-3"><Button variant="outline" onClick={() => { setEditing(open.r); setOpen(null); }}>✎ Editar cadastro</Button></div>
-                  {gvvPending(open.r) && (
-                    <div className="gvv-decide">
-                      <p>Inscrição {open.r.origin_list === "Formulário do site" ? "recebida pelo site" : "aguardando"} · aprove para aparecer nas Casas e poder conectar.</p>
-                      <div className="flex gap-2 justify-end">
-                        <Button variant="outline" onClick={() => { if (confirm(`Recusar a inscrição de ${open.r.name}?`)) decide(open.r, false); }}>Recusar</Button>
-                        <Button onClick={() => decide(open.r, true)}><ICheck className="w-4 h-4" /> Aprovar</Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </>}
           {mode === "conectados" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvConnectedView all={all} tagOf={tagOf} onReload={() => setReloadKey((k) => k + 1)} />)}
           {mode === "mapa" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvMindMap houses={houses} leaders={leadersOnly} all={all} tagOf={tagOf} />)}
-          {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses.filter((r) => r.host_status === "approved")} leaders={all.filter((r) => r.kind === "leader" && r.leader_status === "approved")} archived={archived} tagOf={tagOf} onChanged={() => setReloadKey((k) => k + 1)} />)}
+          {mode === "casas" && (rows === null ? <p role="status" className="txt-muted">Carregando…</p> : <GvvHousePicker houses={houses.filter((r) => r.host_status === "approved")} leaders={all.filter((r) => r.kind === "leader" && r.leader_status === "approved")} archived={archived} tagOf={tagOf} onChanged={() => setReloadKey((k) => k + 1)} onOpenGvv={setOpenGvv} />)}
           {mode === "tabela" && <>
           <div className="mm-card p-4 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
             <Input label="Buscar nome, telefone, bairro ou cidade" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -3133,7 +3109,7 @@
                             <td className="addr">{addr(r) || <span className="txt-faint">Sem endereço</span>}</td>
                             <td>{GVV_STATUS_LABEL[status(r)] || status(r)}</td>
                             <td className="note">{(r.review_notes || "").trim() ? <>⚠ {r.review_notes}</> : <span className="txt-faint">OK</span>}</td>
-                            <td className="gvv-no-print"><Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setEditing(r)}>✎ Editar perfil</Button></td>
+                            <td className="gvv-no-print"><div className="flex gap-2"><Button size="sm" className="whitespace-nowrap" onClick={() => setOpen({ r, tag: tagOf[r.id], kind: GVV_ROSTER_KINDS.find((k) => k.k === r.kind)?.label || "", cat: gvvCatOf(r).label })}>Ver detalhes</Button><Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setEditing(r)}>✎ Editar</Button></div></td>
                           </tr>
                         ))}
                       </tbody>
@@ -3144,6 +3120,45 @@
             );
           })}
           </>}
+            {open && (
+              <div className="gvv-modal" onClick={() => setOpen(null)}>
+                <div className="gvv-modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={open.r.name}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div><span className="gvv-tagno big">{open.tag}</span><h3 className="font-serif text-[26px] mt-2">{open.r.name}</h3><p className="txt-muted text-sm">{open.kind} · {open.cat}</p></div>
+                    <button onClick={() => setOpen(null)} className="p-2 rounded-lg hover-surface" aria-label="Fechar"><IX className="w-5 h-5" /></button>
+                  </div>
+                  <dl className="gvv-dl">
+                    <dt>WhatsApp</dt><dd>{open.r.phone ? <a href={waLink(open.r.phone, `Olá, ${open.r.name.split(" ")[0]}! Aqui é da liderança de GVV da ADVEC Curitiba.`)} target="_blank" rel="noopener" className="text-emerald-400 font-semibold">{open.r.phone}</a> : "—"}</dd>
+                    <dt>Idade</dt><dd>{gvvAge(open.r.birth_date) || "—"}</dd>
+                    <dt>Membro há</dt><dd>{open.r.member_since || "—"}</dd>
+                    <dt>Público</dt><dd>{open.r.audience || "—"}</dd>
+                    {open.r.kind !== "leader" && <><dt>Dias · turno</dt><dd>{open.r.availability || "—"}</dd><dt>Residência</dt><dd>{[open.r.residence_type, open.r.capacity && `até ${open.r.capacity} pessoas`].filter(Boolean).join(" · ") || "—"}</dd></>}
+                    <dt>Endereço</dt><dd>{addr(open.r) || "Sem endereço"}</dd>
+                    {open.r.reference_point && <><dt>Referência</dt><dd>{open.r.reference_point}</dd></>}
+                    <dt>Situação</dt><dd>{GVV_STATUS_LABEL[status(open.r)] || status(open.r)}</dd>
+                    {open.r.source_text && <><dt>Observação</dt><dd>{open.r.source_text}</dd></>}
+                  </dl>
+                  {(open.r.review_notes || "").trim() && <p className="gvv-conferir">⚠ {open.r.review_notes}</p>}
+                  {(() => { const cn = connOfR(open.r.id); const role = cn ? (cn.host_candidate_id === open.r.id && cn.leader_candidate_id === open.r.id ? "líder + anfitrião" : cn.host_candidate_id === open.r.id ? "anfitrião" : cn.leader_candidate_id === open.r.id ? "líder" : "vice-líder") : "";
+                    const h = cn && all.find((x) => x.id === cn.host_candidate_id);
+                    return <div className={`mt-3 p-3 rounded-xl ${cn ? "gvv-link-ok" : "gvv-link-free"}`}>
+                      {cn ? <><p className="text-sm font-bold">✓ Está no GVV {h ? `${tagOf[h.id]}${tagOf["net:" + h.id] ? " · " + tagOf["net:" + h.id] : ""}` : ""} como {role}</p>
+                        <div className="flex justify-end mt-2"><Button size="sm" onClick={() => { setOpenGvv(cn.id); setOpen(null); }}>Ver detalhes do GVV →</Button></div></>
+                        : <><p className="text-sm font-bold">Não está em nenhum GVV</p><div className="flex justify-end mt-2"><Button size="sm" variant="outline" onClick={() => { setMode("casas"); setOpen(null); }}>Conectar em Casas →</Button></div></>}
+                    </div>; })()}
+                  <div className="flex justify-end mt-3"><Button variant="outline" onClick={() => { setEditing(open.r); setOpen(null); }}>✎ Editar cadastro</Button></div>
+                  {gvvPending(open.r) && (
+                    <div className="gvv-decide">
+                      <p>Inscrição {open.r.origin_list === "Formulário do site" ? "recebida pelo site" : "aguardando"} · aprove para aparecer nas Casas e poder conectar.</p>
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="outline" onClick={() => { if (confirm(`Recusar a inscrição de ${open.r.name}?`)) decide(open.r, false); }}>Recusar</Button>
+                        <Button onClick={() => decide(open.r, true)}><ICheck className="w-4 h-4" /> Aprovar</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
         </div>
       );
     };
@@ -4002,7 +4017,7 @@
         </div>
       );
     };
-    const GvvHousePicker = ({ houses, leaders, archived = [], tagOf, onChanged }) => {
+    const GvvHousePicker = ({ houses, leaders, archived = [], tagOf, onChanged, onOpenGvv }) => {
       const toast = useToast();
       const [cat, setCat] = useState("");
       const [q, setQ] = useState("");
@@ -4199,6 +4214,7 @@
               </dl>
               {(l.review_notes || "").trim() && <p className="gvv-conferir">⚠ {l.review_notes}</p>}
               <div className="flex flex-wrap gap-2">
+                {cn && onOpenGvv && <Button onClick={() => onOpenGvv(cn.id)}>Ver detalhes do GVV →</Button>}
                 <Button variant="outline" onClick={() => setEditRow(l)}>✎ Editar cadastro</Button>
                 {l.archived_at ? <Button variant="outline" onClick={() => archive([l.id], false)}>Desarquivar</Button>
                   : <Button variant="outline" onClick={() => archive([l.id], true)} disabled={!!cn} title={cn ? "Desconecte o GVV antes" : ""}>Arquivar</Button>}
@@ -4228,7 +4244,10 @@
                   {selConn && <><dt>Conexão</dt><dd className="font-semibold">✓ com {nameOf(selConn.leader_candidate_id === sel.id ? selConn.host_candidate_id : selConn.leader_candidate_id) || "líder"}</dd></>}
                 </dl>
                 {(sel.review_notes || "").trim() && <p className="gvv-conferir">⚠ {sel.review_notes}</p>}
-                <Button variant="outline" size="sm" className="mt-3" onClick={() => setEditRow(sel)}>✎ Editar cadastro</Button>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {selConn && onOpenGvv && <Button size="sm" onClick={() => onOpenGvv(selConn.id)}>Ver detalhes do GVV →</Button>}
+                  <Button variant="outline" size="sm" onClick={() => setEditRow(sel)}>✎ Editar cadastro</Button>
+                </div>
               </div>
               {!needsLeader ? (
                 <div className="gvv-house-near gvv-self-led">
