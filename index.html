@@ -406,14 +406,14 @@
     /* Detalhes do GVV: anfitrião, líder e vice */
     html[data-color=on] .gvv-person-card:is(.house, .leader, .vice) { border: 0 !important; color: #fff !important; box-shadow: 0 10px 24px -14px var(--pc), inset 0 1px 0 rgba(255,255,255,.25) !important;
       background: radial-gradient(130% 120% at 0% 0%, color-mix(in srgb, var(--pc) 80%, #fff), var(--pc) 40%, color-mix(in srgb, var(--pc) 70%, #000)) !important; }
-    html[data-color=on] .gvv-person-card.house { --pc: #0F9D8A; } html[data-color=on] .gvv-person-card.leader { --pc: #2B77E4; } html[data-color=on] .gvv-person-card.vice { --pc: #8B2BE2; }
+    html[data-color=on] .gvv-person-card.house { --pc: #0F9D8A; } html[data-color=on] .gvv-person-card.leader { --pc: #2B77E4; } html[data-color=on] .gvv-person-card.vice { --pc: #475569; }
     html[data-color=on] .gvv-person-card.vice.empty { --pc: #5b6472; }
     html[data-color=on] .gvv-person-card :is(p, .gvv-role) { color: rgba(255,255,255,.82) !important; }
     html[data-color=on] .gvv-person-card :is(b, .gvv-wa) { color: #fff !important; }
 
     /* Números da aba GVVs */
     html[data-color=on] .gvv-stat:not(.blue):not(.lime):not(.warn) { border: 0 !important; color: #fff !important; background: linear-gradient(150deg, var(--sc), color-mix(in srgb, var(--sc) 70%, #000)) !important; box-shadow: 0 10px 22px -14px var(--sc); }
-    html[data-color=on] .gvv-stat:nth-child(5n+1) { --sc: #2B77E4; } html[data-color=on] .gvv-stat:nth-child(5n+2) { --sc: #8B2BE2; } html[data-color=on] .gvv-stat:nth-child(5n+3) { --sc: #E5225B; }
+    html[data-color=on] .gvv-stat:nth-child(5n+1) { --sc: #2B77E4; } html[data-color=on] .gvv-stat:nth-child(5n+2) { --sc: #0EA5E9; } html[data-color=on] .gvv-stat:nth-child(5n+3) { --sc: #E5225B; }
     html[data-color=on] .gvv-stat:nth-child(5n+4) { --sc: #0F9D8A; } html[data-color=on] .gvv-stat:nth-child(5n) { --sc: #FF8A00; }
     html[data-color=on] .gvv-stat:not(.blue):not(.lime):not(.warn) span { color: rgba(255,255,255,.85) !important; }
 
@@ -4163,6 +4163,45 @@
         </div>
       );
     };
+    /* Ficha do líder: casas mais perto dele, livres primeiro, com um toque para conectar. */
+    const GvvHousesNear = ({ l, houses, conns, tagOf, busyIn, onDone }) => {
+      const toast = useToast();
+      const [busy, setBusy] = useState(""), [all, setAll] = useState(false);
+      const lp = gvvPoint(l);
+      const rows = houses.map((h) => { const pt = gvvPoint(h), cn = conns.find((c) => c.host_candidate_id === h.id);
+        return { h, cn, open: !cn || !cn.leader_candidate_id, km: pt && lp ? gvvKm(lp, pt) : null, approx: pt?.approx }; })
+        .filter((x) => all || x.open)
+        .sort((a, b) => (b.open - a.open) || (a.km ?? 9999) - (b.km ?? 9999));
+      const link = async ({ h, cn }) => {
+        if (busyIn) return toast.error("Este líder já está em um GVV. Tire ele de lá antes (Ver detalhes do GVV).");
+        if (!confirm(`Conectar ${l.name.split(" ")[0]} como líder na ${tagOf[h.id] || "casa"} (${h.name})?`)) return;
+        setBusy(h.id);
+        const { error } = cn ? await supabase.rpc("gvv_set_leader", { p_conn: cn.id, p_leader: l.id })
+          : await supabase.rpc("gvv_connect_candidates", { p_leader: l.id, p_host: h.id, p_notes: "Conectado pela ficha do líder" });
+        setBusy("");
+        if (error) return toast.error(error.message);
+        toast.success("Conectado! Escolha o vice em Ver detalhes do GVV."); onDone?.();
+      };
+      return (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="font-semibold">Casas perto de {l.name.split(" ")[0]}</h4>
+            <label className="flex items-center gap-2 text-xs font-semibold txt-muted"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Mostrar também casas que já têm líder</label>
+          </div>
+          {!lp && <p className="gvv-conferir">Este líder ainda não tem endereço no mapa: a lista vem sem distância. Use ✎ Editar cadastro para pôr o endereço.</p>}
+          <ul className="gvv-near-list" style={{ maxHeight: 340, overflow: "auto" }}>
+            {rows.slice(0, 30).map(({ h, cn, open, km, approx }) => (
+              <li key={h.id} className={`c-${gvvCatOf(h).k} ${open ? "" : "gvv-busy"}`}>
+                <span className="gvv-km">{km != null ? gvvFmtKm(km) + (approx ? "*" : "") : "—"}</span>
+                <div className="min-w-0"><b><span className="gvv-tagno mr-1">{tagOf[h.id]}</span>{h.name}</b>
+                  <p>{[gvvCatOf(h).label, h.neighborhood, (h.availability || "").split(" · ")[0], !open ? "já tem líder" : cn ? "GVV sem líder" : null].filter(Boolean).join(" · ")}</p></div>
+                <div className="ml-auto">{open ? <Button size="sm" disabled={!!busy} onClick={() => link({ h, cn })}>{busy === h.id ? "…" : "Conectar aqui"}</Button> : <span className="gvv-badge ok">✓ com líder</span>}</div>
+              </li>))}
+            {!rows.length && <li className="txt-muted text-sm">Nenhuma casa livre.</li>}
+          </ul>
+        </div>
+      );
+    };
     const GvvHousePicker = ({ houses, leaders, archived = [], tagOf, onChanged, onOpenGvv }) => {
       const toast = useToast();
       const [cat, setCat] = useState("");
@@ -4225,7 +4264,31 @@
           const pt = gvvPoint(l); return pt ? { l, pt, km: gvvKm(selPt, pt) } : null;
         }).filter((x) => x && x.km <= radius).sort((a, b) => a.km - b.km);
       }, [selId, radius, withBoth, leaders]);
-      const noLoc = sel ? leaders.filter((l) => l.kind === "leader" && !gvvPoint(l)).length : 0;
+      const noLocList = leaders.filter((l) => l.kind === "leader" && !gvvPoint(l));
+      const noLoc = sel ? noLocList.length : 0;
+      // Líder sem ponto no mapa: acha pelo endereço/bairro/CEP e grava a posição aproximada no cadastro (vale para todos).
+      const [geoRun, setGeoRun] = useState(null);
+      const geoTried = useRef(new Set());
+      useEffect(() => {
+        const todo = noLocList.filter((l) => !geoTried.current.has(l.id) && (l.home_address || l.address || l.neighborhood || l.cep));
+        if (!todo.length) return;
+        let stop = false;
+        (async () => {
+          let ok = 0;
+          for (let i = 0; i < todo.length && !stop; i++) {
+            const l = todo[i]; geoTried.current.add(l.id); setGeoRun({ i: i + 1, n: todo.length });
+            let g = null;
+            const cep = String(l.cep || "").replace(/\D/g, "");
+            try { g = cep.length === 8 ? await gvvLocate(cep) : null; } catch (e) {}
+            if (!g) { try { g = await gvvLocateLoose(l.home_address || l.address || "", ""); } catch (e) {} }
+            if (!g && l.neighborhood) { try { g = await gvvLocate([l.neighborhood, l.city || "Curitiba"].join(", ")); } catch (e) {} }
+            if (g) { const { error } = await supabase.from("gvv_candidates").update({ approx_lat: g.lat, approx_lng: g.lng }).eq("id", l.id); if (!error) ok++; }
+            await new Promise((r) => setTimeout(r, 1100));
+          }
+          if (!stop) { setGeoRun(null); if (ok) onChanged?.(); }
+        })();
+        return () => { stop = true; };
+      }, [noLocList.map((l) => l.id).join()]);
       useEffect(() => {
         if (map.current && !document.body.contains(mapEl.current)) { map.current.remove(); map.current = null; }
         if (!mapEl.current || !window.L) return;
@@ -4280,7 +4343,7 @@
         if (!selConn) return null;
         const v = selConn.vice_candidate_id ? [...leaders, ...houses].find((x) => x.id === selConn.vice_candidate_id) : null;
         return (
-          <div className="mt-4 p-4 rounded-xl" style={{ border: `2px ${v ? "solid" : "dashed"} ${v ? "#a855f7" : "var(--gvv-lime)"}` }}>
+          <div className="mt-4 p-4 rounded-xl" style={v ? { border: "1px solid var(--line)", background: "var(--surface-2)" } : { border: "2px dashed var(--gvv-lime)" }}>
             <p className="text-xs font-bold tracking-wider txt-muted">VICE-LÍDER</p>
             <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
               <b className="text-lg">{v ? v.name : "Ainda sem vice"}</b>
@@ -4364,6 +4427,7 @@
                 <dt>GVV</dt><dd>{cn ? `Lidera ${tagOf[cn.host_candidate_id] || "um GVV"}` : "Sem casa"}</dd>
               </dl>
               {(l.review_notes || "").trim() && <p className="gvv-conferir">⚠ {l.review_notes}</p>}
+              {!l.archived_at && <GvvHousesNear l={l} houses={houses} conns={conns} tagOf={tagOf} busyIn={inAnyGvv(l.id)} onDone={() => { loadConns(); onChanged?.(); }} />}
               <div className="flex flex-wrap gap-2">
                 {cn && onOpenGvv && <Button onClick={() => onOpenGvv(cn.id)}>Ver detalhes do GVV →</Button>}
                 <Button variant="outline" onClick={() => setEditRow(l)}>✎ Editar cadastro</Button>
@@ -4447,7 +4511,10 @@
                       })}
                     </ul>
                   )}
-                  <p className="text-[12px] txt-faint mt-2">* distância aproximada pelo CEP (linha reta). {noLoc ? `${noLoc} líder(es) sem endereço não entram no cálculo.` : ""}</p>
+                  <p className="text-[12px] txt-faint mt-2">* distância aproximada pelo CEP/bairro (linha reta).</p>
+                  {geoRun && <p className="text-[12px] txt-muted mt-1">Localizando líderes no mapa… {geoRun.i} de {geoRun.n}</p>}
+                  {!geoRun && noLoc > 0 && <details className="mt-2 text-[12.5px]"><summary className="cursor-pointer txt-muted">{noLoc} líder(es) sem endereço — não aparecem no mapa. Ver quem é</summary>
+                    <ul className="mt-2 grid gap-1">{noLocList.map((l) => <li key={l.id} className="flex items-center justify-between gap-2"><span>{l.name}{l.phone ? ` · ${l.phone}` : ""}</span><button type="button" className="gvv-mini" onClick={() => setEditRow(l)}>✎ Pôr endereço</button></li>)}</ul></details>}
                 </>}
               </div>
               )}
