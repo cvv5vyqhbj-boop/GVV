@@ -3081,7 +3081,7 @@
                 {!part.length ? <p className="p-4 text-sm txt-muted">Ninguém nesta lista.</p> : (
                   <div className="overflow-x-auto">
                     <table className="gvv-table">
-                      <thead><tr><th>Nome</th><th>WhatsApp</th><th>Idade</th><th>Membro há</th>{kind.k !== "leader" && <th>Dias · turno</th>}<th>Bairro · cidade</th><th>Endereço</th><th>Situação</th><th>Conferir</th></tr></thead>
+                      <thead><tr><th>Nome</th><th>WhatsApp</th><th>Idade</th><th>Membro há</th>{kind.k !== "leader" && <th>Dias · turno</th>}<th>Bairro · cidade</th><th>Endereço</th><th>Situação</th><th>Conferir</th><th className="gvv-no-print"></th></tr></thead>
                       <tbody>
                         {part.map((r) => (
                           <tr key={r.id} className={`c-${gvvCatOf(r).k} ${(r.review_notes || "").trim() ? "warn" : ""}`}>
@@ -3094,6 +3094,7 @@
                             <td className="addr">{addr(r) || <span className="txt-faint">Sem endereço</span>}</td>
                             <td>{GVV_STATUS_LABEL[status(r)] || status(r)}</td>
                             <td className="note">{(r.review_notes || "").trim() ? <>⚠ {r.review_notes}</> : <span className="txt-faint">OK</span>}</td>
+                            <td className="gvv-no-print"><Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setEditing(r)}>✎ Editar perfil</Button></td>
                           </tr>
                         ))}
                       </tbody>
@@ -4251,6 +4252,80 @@
       { k: "idosos", label: "Idosos (60+)", min: 60, max: 200 },
     ];
     const GVV_INTEREST_STATUS = { novo: "Novo", contatado: "Contatado", encaminhado: "Encaminhado a um GVV", arquivado: "Arquivado" };
+    /* Interessado → GVVs mais perto da casa dele, com mapa, e um toque para encaixar. */
+    const gvvNetForAge = (age) => age == null ? null : age < 12 ? "juniores" : age < 18 ? "adolescentes" : age < 30 ? "jovens" : "misto";
+    const GvvInterestNear = ({ r, gvvs, members, current, onClose, onPut, onStatus }) => {
+      const [origin, setOrigin] = useState(null), [err, setErr] = useState(""), [busy, setBusy] = useState(""), [net, setNet] = useState("");
+      const mapEl = useRef(null), map = useRef(null);
+      const first = r.full_name.split(" ")[0];
+      useEffect(() => { (async () => {
+        const q = [r.address, r.number].filter(Boolean).join(", ");
+        if (!q.trim()) return setErr("Esta pessoa não informou endereço. Peça pelo WhatsApp e escolha o GVV na lista.");
+        try { setOrigin(await gvvLocate(q)); } catch (e) { setErr("Não achei o endereço no mapa. A lista abaixo está sem distância."); }
+      })(); }, [r.id]);
+      const ideal = gvvNetForAge(r.age);
+      const rows = gvvs.map((g) => { const pt = gvvPoint(g.h); return { g, pt, km: pt && origin ? gvvKm(origin, pt) : null, n: members.filter((m) => m.connection_id === g.id && m.status !== "inativo").length }; })
+        .filter((x) => !net || (x.g.h.network || "misto") === net)
+        .sort((a, b) => (a.km ?? 9999) - (b.km ?? 9999));
+      useEffect(() => {
+        if (!mapEl.current || !window.L) return;
+        if (!map.current) {
+          map.current = window.L.map(mapEl.current, { zoomControl: true }).setView([-25.4984, -49.2478], 12);
+          try { window.L.maplibreGL({ style: new URL("map-style.json", location.href).href, interactive: false, attribution: "© OpenFreeMap · © OpenStreetMap" }).addTo(map.current); }
+          catch (_) { window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map.current); }
+        }
+        const layer = window.L.layerGroup().addTo(map.current);
+        const pts = [];
+        if (origin) { window.L.marker([origin.lat, origin.lng], { icon: window.L.divIcon({ className: "", html: '<div class="gvv-me"></div>', iconSize: [20, 20], iconAnchor: [10, 10] }), zIndexOffset: 1000 }).addTo(layer).bindTooltip(first, { permanent: true, direction: "top", offset: [0, -10] }); pts.push([origin.lat, origin.lng]); }
+        rows.slice(0, 8).forEach(({ g, pt }) => { if (!pt) return;
+          window.L.marker([pt.lat, pt.lng], { icon: gvvHousePinIcon(String(g.h.house_no ?? "?").padStart(2, "0"), g.id === current, pt.approx, g.h.network || "misto") }).addTo(layer)
+            .bindTooltip(`${gvvIdOf(g.h)} · ${g.h.name.split(" ")[0]}`); pts.push([pt.lat, pt.lng]); });
+        if (pts.length) map.current.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
+        setTimeout(() => map.current?.invalidateSize(), 50);
+        return () => layer.remove();
+      }, [origin, net, current, gvvs.length]);
+      useEffect(() => () => { map.current?.remove(); map.current = null; }, []);
+      const put = async (id) => { setBusy(id); await onPut(id); setBusy(""); };
+      return ReactDOM.createPortal(
+        <div className="gvv-modal" onClick={onClose}>
+          <div className="gvv-modal-card gvv-editor" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`GVVs perto de ${first}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="gvv-ask-kicker">GVVs perto de</p><h3 className="font-serif text-[30px] leading-none">{r.full_name}</h3>
+                <p className="txt-muted text-sm mt-1">{[r.age && `${r.age} anos`, [r.address, r.number].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || "Sem endereço"}</p></div>
+              <button onClick={onClose} className="p-2 rounded-lg hover-surface" aria-label="Fechar"><IX className="w-5 h-5" /></button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <a href={waLink(r.phone, `Olá, ${first}! Aqui é da liderança de GVV da ADVEC Curitiba 🙌`)} target="_blank" rel="noopener" className="gvv-chip" onClick={() => r.status === "novo" && onStatus("contatado")}><IWhats className="w-4 h-4 inline" /> WhatsApp {first}</a>
+              {Object.entries(GVV_INTEREST_STATUS).map(([k, l]) => <button key={k} className={`gvv-chip ${r.status === k ? "on" : ""}`} onClick={() => onStatus(k)}>{l}</button>)}
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <button className={`gvv-chip ${!net ? "on" : ""}`} onClick={() => setNet("")}>Todas as redes</button>
+              {GVV_ROSTER_CATS.map((c) => <button key={c.k} className={`gvv-chip c-${c.k} ${net === c.k ? "on" : ""}`} onClick={() => setNet(c.k)}>{c.label}{ideal === c.k ? " ★" : ""}</button>)}
+            </div>
+            {ideal && <p className="text-xs txt-muted mt-2">★ rede que combina com a idade de {first}.</p>}
+            {err && <p className="gvv-conferir mt-3">{err}</p>}
+            <div ref={mapEl} className="gvv-house-map mt-3" style={{ height: 260 }} />
+            <ul className="gvv-near-list mt-3" style={{ maxHeight: 340, overflow: "auto" }}>
+              {rows.map(({ g, km, pt, n }) => (
+                <li key={g.id} className={`c-${g.h.network || "misto"}`}>
+                  <span className="gvv-km">{km != null ? gvvFmtKm(km) + (pt?.approx ? "*" : "") : "—"}</span>
+                  <div className="min-w-0">
+                    <b><span className="gvv-tagno mr-1">{gvvIdOf(g.h)}</span>{g.h.name.split(" ")[0]}{g.h.neighborhood ? ` · ${g.h.neighborhood}` : ""}</b>
+                    <p>{[gvvCatOf(g.h).label, [g.day, g.time].filter(Boolean).join(" ") || "dia a definir", g.l && g.l.id !== g.h.id ? `líder ${g.l.name.split(" ")[0]}` : "o anfitrião lidera", `${n} membro(s)`].join(" · ")}{(g.h.network || "misto") === ideal ? " · ★ idade" : ""}</p>
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    {g.l?.phone && <a href={waLink(g.l.phone, `Olá, ${g.l.name.split(" ")[0]}! Temos uma pessoa interessada no seu GVV: ${r.full_name} (${r.phone}).`)} target="_blank" rel="noopener" className="text-emerald-400" title="Avisar o líder no WhatsApp"><IWhats className="w-5 h-5" /></a>}
+                    {current === g.id ? <span className="gvv-badge ok">✓ neste GVV</span>
+                      : <Button size="sm" onClick={() => put(g.id)} disabled={!!busy}>{busy === g.id ? "…" : "Colocar aqui"}</Button>}
+                  </div>
+                </li>
+              ))}
+              {!rows.length && <li className="txt-muted text-sm">Nenhum GVV formado nesta rede.</li>}
+            </ul>
+            <p className="text-[12px] txt-faint mt-2">Distância em linha reta. * casa com localização aproximada pelo CEP.</p>
+          </div>
+        </div>, document.body);
+    };
     const GvvInterestsView = ({ data }) => {
       const toast = useToast();
       const [rows, setRows] = useState(null);
@@ -4265,14 +4340,15 @@
       const [gvvs, setGvvs] = useState([]);
       const [gvvMembers, setGvvMembers] = useState([]);
       const loadGvvs = async () => {
-        const [c, k, m] = await Promise.all([supabase.from("gvv_connections").select("*").order("created_at"), supabase.from("gvv_candidates").select("id,name,house_no,neighborhood,network,days,availability"), supabase.from("gvv_members").select("id,interest_id,connection_id")]);
+        const [c, k, m] = await Promise.all([supabase.from("gvv_connections").select("*").order("created_at"), supabase.from("gvv_candidates").select("id,name,kind,phone,house_no,neighborhood,network,network_no,days,availability,host_lat,host_lng,home_lat,home_lng,approx_lat,approx_lng"), supabase.from("gvv_members").select("id,interest_id,connection_id,status")]);
         const by = Object.fromEntries((k.data || []).map((x) => [x.id, x]));
-        setGvvs((c.data || []).map((x) => ({ id: x.id, h: by[x.host_candidate_id], day: x.meeting_day })).filter((x) => x.h));
+        setGvvs((c.data || []).map((x) => ({ id: x.id, h: by[x.host_candidate_id], l: by[x.leader_candidate_id], day: x.meeting_day, time: x.meeting_time })).filter((x) => x.h));
         setGvvMembers(m.data || []);
       };
       useEffect(() => { loadGvvs(); }, []);
       const gvvLabel = (g) => `CASA ${String(g.h.house_no ?? "").padStart(2, "0")} · ${g.h.name.split(" ")[0]}${g.h.neighborhood ? " · " + g.h.neighborhood : ""}${g.day ? " · " + g.day : (g.h.days ? " · " + g.h.days : "")}`;
       const memberOf = (r) => gvvMembers.find((m) => m.interest_id === r.id);
+      const [nearOf, setNearOf] = useState(null);
       const putInGvv = async (r, connId) => {
         if (!connId) return;
         const { error } = await supabase.rpc("gvv_add_interest", { p_conn: connId, p_interest: r.id });
@@ -4347,6 +4423,8 @@
               </div>
             </div>
           </div>
+          {nearOf && <GvvInterestNear r={nearOf} gvvs={gvvs} members={gvvMembers} current={memberOf(nearOf)?.connection_id} onClose={() => setNearOf(null)}
+            onPut={async (connId) => { await putInGvv(nearOf, connId); }} onStatus={(v) => { patch(nearOf, { status: v }); setNearOf((x) => ({ ...x, status: v })); }} />}
           {err && <p className="text-rose-300 text-sm" role="alert">{err}</p>}
           {rows === null ? <p role="status" className="txt-muted">Carregando…</p> : !list.length ? (
             <div className="mm-card p-8 text-center txt-muted">{(rows || []).length ? "Ninguém com esses filtros." : "Ainda ninguém preencheu o formulário."}</div>
@@ -4373,6 +4451,7 @@
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <a href={wa} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-emerald-400" onClick={() => r.status === "novo" && patch(r, { status: "contatado" })}><IWhats className="w-4 h-4" /> {r.phone}</a>
+                      <Button size="sm" className="ml-auto" onClick={() => setNearOf(r)}><IPin className="w-4 h-4" /> Ver GVVs perto</Button>
                     </div>
                   </div>
                 );
