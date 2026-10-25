@@ -2856,7 +2856,7 @@
     };
 
     /* ID do GVV: rede + número na rede (ex.: JOVENS 03) e número da casa. */
-    const gvvIdOf = (h) => `${gvvCatOf(h || {}).short} ${String(h?.network_no ?? "?").padStart(2, "0")} · CASA ${String(h?.house_no ?? "?").padStart(2, "0")}`;
+    const gvvIdOf = (h) => `${gvvCatOf(h || {}).short} ${String(h?.network_no ?? "?").padStart(2, "0")}`;
     const GvvHubView = () => {
       const [d, setD] = useState(null);
       const [open, setOpen] = useState("");
@@ -2983,8 +2983,8 @@
     const GVV_ROSTER_CATS = [
       { k: "misto", label: "Misto", short: "MISTO" },
       { k: "jovens", label: "Jovens", short: "JOVENS" },
-      { k: "adolescentes", label: "Adolescentes", short: "ADOL" },
-      { k: "juniores", label: "Juniores", short: "JUNIOR" },
+      { k: "adolescentes", label: "Adolescentes", short: "ADOLESCENTES" },
+      { k: "juniores", label: "Juniores", short: "JUNIORES" },
     ];
     /* Mesma regra do banco (gvv_network_of): vários públicos = misto. */
     const gvvNetworkOf = (r) => {
@@ -3060,7 +3060,7 @@
       const catIdx = (r) => GVV_ROSTER_CATS.indexOf(gvvCatOf(r));
       const byCatName = (a, b) => catIdx(a) - catIdx(b) || a.name.localeCompare(b.name, "pt-BR");
       /* Casas com número fixo do banco (house_no). Sem número ainda: vão para o fim. */
-      const houses = all.filter((r) => r.kind !== "leader").sort((a, b) => (a.house_no ?? 9999) - (b.house_no ?? 9999) || byCatName(a, b));
+      const houses = all.filter((r) => r.kind !== "leader").sort((a, b) => catIdx(a) - catIdx(b) || (a.network_no ?? 9999) - (b.network_no ?? 9999) || a.name.localeCompare(b.name, "pt-BR"));
       const leadersOnly = all.filter((r) => r.kind === "leader").sort(byCatName);
       const tagOf = useMemo(() => {
         const m = {};
@@ -3273,7 +3273,8 @@
       const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const [detail, setDetail] = useState(null);
       const [dayF, setDayF] = useState("");
-      const items = (conns || []).map((c, i) => ({ c, n: i + 1, house: byId[c.host_candidate_id], leader: byId[c.leader_candidate_id] || { id: "", name: "Sem líder", missing: true }, vice: byId[c.vice_candidate_id] })).filter((x) => x.house);
+      const items = (conns || []).map((c, i) => ({ c, n: i + 1, house: byId[c.host_candidate_id], leader: byId[c.leader_candidate_id] || { id: "", name: "Sem líder", missing: true }, vice: byId[c.vice_candidate_id] })).filter((x) => x.house)
+        .sort((a, b) => GVV_ROSTER_CATS.indexOf(gvvCatOf(a.house)) - GVV_ROSTER_CATS.indexOf(gvvCatOf(b.house)) || (a.house.network_no ?? 9999) - (b.house.network_no ?? 9999));
       const dayOf = (x) => gvvDaysOf(x.c.meeting_day || x.house.days || x.house.availability);
       const filtered = items.filter((x) => (!dayF || dayOf(x).includes(dayF)) && (!cat || gvvCatOf(x.house).k === cat) && (!q.trim() || norm([x.house.name, x.leader.name, tagOf[x.house.id], x.house.neighborhood].join(" ")).includes(norm(q.trim()))));
       const PER = printing ? 9999 : 8, pages = Math.max(1, Math.ceil(filtered.length / PER)), pg = Math.min(page, pages - 1);
@@ -3325,7 +3326,7 @@
               const c = gvvCatOf(x.house);
               return (
                 <div key={x.c.id} role="button" tabIndex={0} onClick={() => setSelId(x.c.id)} onKeyDown={(e) => e.key === "Enter" && setSelId(x.c.id)} style={{ cursor: "pointer" }} className={`gvv-house c-${c.k} ${sel?.c.id === x.c.id ? "on" : ""} done`}>
-                  <span className="gvv-house-top"><span className="gvv-house-no" data-k="CASA">{String(tagOf[x.house.id] || "").replace("CASA ", "")}</span><span className={`gvv-cat-pill c-${c.k}`}>{tagOf["net:" + x.house.id] || c.label.split(" /")[0]}</span></span>
+                  <span className="gvv-house-top"><span className="gvv-house-no" data-k={c.short}>{String(x.house.network_no ?? "?").padStart(2, "0")}</span><span className={`gvv-cat-pill c-${c.k}`}>{tagOf[x.house.id]}</span></span>
                   <span className="gvv-conn-line"><small>Casa · anfitrião</small>{x.house.name}</span>
                   <span className="gvv-conn-line"><small>Líder</small>{x.leader.missing ? <i className="txt-faint">sem líder</i> : x.leader.id === x.house.id ? "o próprio anfitrião" : x.leader.name}</span>
                   <span className="gvv-conn-line"><small>Vice</small>{x.vice ? x.vice.name : <i className="txt-faint">a definir</i>}</span>
@@ -4394,7 +4395,7 @@
               );
               return (
                 <button key={h.id} onClick={() => setSelId(h.id)} className={`gvv-house c-${c.k} ${selId === h.id ? "on" : ""} ${cn ? "done" : ""}`}>
-                  <span className="gvv-house-top"><span className="gvv-house-no" data-k="CASA">{tagOf[h.id].replace("CASA ", "")}</span><span className={`gvv-cat-pill c-${c.k}`}>{tagOf["net:" + h.id]}</span></span>
+                  <span className="gvv-house-top"><span className="gvv-house-no" data-k={c.short}>{String(h.network_no ?? "?").padStart(2, "0")}</span><span className={`gvv-cat-pill c-${c.k}`}>{tagOf[h.id]}{false && tagOf["net:" + h.id]}</span></span>
                   <span className="gvv-house-name">{h.name}</span>
                   <span className="gvv-house-meta"><IPin className="w-3.5 h-3.5" /> {h.neighborhood || h.city || "sem bairro"}</span>
                   <span className="gvv-house-foot">
