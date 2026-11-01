@@ -2089,6 +2089,8 @@
         return ["mapa", "participar", "servir", "lider", "supervisor", "adm"].includes(k) ? k : "";
       } catch (e) { return ""; }
     };
+    /* Quem quer participar de um GVV preenche o formulário da Jotiva. */
+    const GVV_JOIN_URL = "https://app.jotivachurch.com.br/forms/08f34511-4fb7-434c-bd4b-0faba3a39a8d";
     const gvvNavigate = (k) => {
       try { history.pushState(null, "", k ? `/${k}` : "/"); } catch (e) {}
       window.dispatchEvent(new Event("gvv-route"));
@@ -2121,7 +2123,7 @@
           <h1 className="gvv-display gvv-hero">Faça parte<br />de um <span style={{ color: "var(--gvv-blue)" }}>GVV</span></h1>
           <p className="gvv-lead">Grupos nas casas, perto de você. Encontre um GVV ou deixe seu contato e a gente te chama.</p>
           <div className="gvv-choices">
-            <button type="button" className="gvv-choice lime" onClick={() => gvvNavigate("participar")}>
+            <button type="button" className="gvv-choice lime" onClick={() => { location.href = GVV_JOIN_URL; }}>
               <span className="gvv-display">Quero fazer parte de um GVV</span>
               <small>Preencha o formulário · leva 1 minuto</small>
             </button>
@@ -2417,7 +2419,7 @@
       const waLink = (c) => { const d = String(c.whatsapp || "").replace(/\D/g, ""); if (d.length < 10) return null;
         const txt = `Olá${c.leader_first ? ", " + c.leader_first : ""}! Encontrei o ${c.name} no site da ADVEC e quero participar. Pode me passar as informações?`;
         return `https://wa.me/${d.startsWith("55") ? d : "55" + d}?text=${encodeURIComponent(txt)}`; };
-      const join = (c) => { try { sessionStorage.setItem("gvv_pref_cell", JSON.stringify({ id: c.id, name: c.name })); } catch (e) {} gvvNavigate("participar"); };
+      const join = (c) => { try { sessionStorage.setItem("gvv_pref_cell", JSON.stringify({ id: c.id, name: c.name })); } catch (e) {} location.href = GVV_JOIN_URL; };
       const audiences = [...new Set(cells.map((c) => c.audience).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
       return (
@@ -2634,7 +2636,7 @@
     const GvvPublic = () => {
       const r = useGvvRoute();
       if (r === "mapa") return <GvvPublicMap />;
-      if (r === "participar") return <GvvJoinForm />;
+      if (r === "participar") { location.replace(GVV_JOIN_URL); return null; }
       if (r === "servir") return <GvvCandidateForm />;
       if (r === "lider") return <GvvLeaderLogin />;
       if (r === "supervisor") return <LoginView kind="supervisor" />;
@@ -4774,7 +4776,7 @@
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `interessados-gvv-${todayISO()}.csv`; a.click();
       };
       const count = (s) => (rows || []).filter((r) => r.status === s).length;
-      const share = `${location.origin}/participar`;
+      const share = GVV_JOIN_URL;
       const mapLink = `${location.origin}/mapa`;
       return (
         <div className="space-y-5">
